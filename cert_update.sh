@@ -1,5 +1,13 @@
 #!/bin/bash
 
+###
+# 此脚本用于自动更新证书，并自动更新到Synology DSM中
+# 1. 首先需要在.env文件中配置好环境变量
+# 2. 然后运行此脚本
+# 3. 脚本会自动更新证书，并自动更新到Synology DSM中
+# 4. 如运行成功，需要手动将此脚本添加到定时任务中
+#
+
 # 加载环境变量
 if [ -f ".env" ]; then
     export $(cat .env | grep -v '^#' | xargs)
