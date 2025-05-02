@@ -41,7 +41,7 @@ OPENWRT_IP = os.getenv('OPENWRT_IP')  # OpenWrt路由器IP地址
 
 FIREWALL_TYPE = os.getenv('FIREWALL_TYPE')  # 防火墙类型
 
-def create_nginx_ssl_site(port, usage, https=True, ws=False):
+def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None):
     """创建Nginx SSL站点配置
 
     Args:
@@ -49,6 +49,10 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False):
         usage (str): 用途说明，用于配置文件命名
         https (bool, optional): 是否启用HTTPS. Defaults to True.
         ws (bool, optional): 是否启用WebSocket支持. Defaults to False.
+        proxy_https (bool, optional): 是否使用HTTPS协议连接代理目标服务器. 
+            如果未指定，将跟随站点的HTTPS设置；
+            如果指定为True，则使用HTTPS协议；
+            如果指定为False，则使用HTTP协议。
 
     配置文件生成规则：
     1. 配置文件命名格式：{前缀}-{用途}-{端口}.conf
@@ -103,7 +107,7 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False):
 {ssl_config}
     location / {{
         # 反向代理到OpenWrt服务
-        proxy_pass http{'s' if https else ''}://{OPENWRT_IP}:{port};
+        proxy_pass http{'s' if (proxy_https if proxy_https is not None else https) else ''}://{OPENWRT_IP}:{port};
         # 设置代理头部
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;{ws_config}
@@ -167,12 +171,16 @@ def main():
     示例：
         python3 create_nginx_ssl_site.py 8080 myapp --ws  # 创建HTTPS+WS站点
         python3 create_nginx_ssl_site.py 8080 myapp --no-https  # 创建HTTP站点
+        python3 create_nginx_ssl_site.py 8080 myapp --proxy-https  # 使用HTTPS协议连接代理服务器
+        python3 create_nginx_ssl_site.py 8080 myapp --proxy-http  # 使用HTTP协议连接代理服务器
     """
     parser = argparse.ArgumentParser(description='创建Nginx SSL站点配置')
     parser.add_argument('port', type=int, help='端口号')
     parser.add_argument('usage', help='用途说明')
     parser.add_argument('--no-https', action='store_false', dest='https', help='禁用HTTPS（默认启用）')
     parser.add_argument('--ws', action='store_true', help='启用WebSocket支持')
+    parser.add_argument('--proxy-https', action='store_true', dest='proxy_https', help='使用HTTPS协议连接代理目标服务器')
+    parser.add_argument('--proxy-http', action='store_false', dest='proxy_https', help='使用HTTP协议连接代理目标服务器')
 
     args = parser.parse_args()
 
@@ -182,7 +190,7 @@ def main():
         sys.exit(1)
 
     # 调用配置生成函数
-    create_nginx_ssl_site(args.port, args.usage, args.https, args.ws)
+    create_nginx_ssl_site(args.port, args.usage, args.https, args.ws, args.proxy_https if hasattr(args, 'proxy_https') else None)
 
 if __name__ == '__main__':
     main()
