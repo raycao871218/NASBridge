@@ -1,0 +1,15 @@
+# 服务配置文件示例
+# 格式：服务名称 端口 是否HTTPS(true/false) 是否需要websocket 反向代理是否为https
+
+# === 示例服务 ===
+# 普通Web应用示例（不需要websocket）
+web_app 8080 true false true
+
+# 实时通信应用示例（需要websocket）
+chat_app 8443 true true true
+
+# 注意事项：
+# 1. 端口号不要重复
+# 2. 对外服务建议启用HTTPS
+# 3. 需要实时通信的服务要启用websocket
+# 4. 反向代理建议使用HTTPS以保证安全性
