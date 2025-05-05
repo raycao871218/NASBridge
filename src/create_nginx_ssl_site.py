@@ -63,7 +63,7 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None, p
 
     server_name = f"{PREFIXE}.{DOMAIN}"
     cert_file = f"{CERT_SAVE_PATH}"
-    key_file = f"/{KEY_SAVE_PATH}"
+    key_file = f"{KEY_SAVE_PATH}"
     conf_file = f"{NGINX_CONFIG_PATH_AVAILABLE}/{PREFIXE}-{usage}-{port}.conf"
 
     # 检查证书文件是否存在（仅在HTTPS模式下）
