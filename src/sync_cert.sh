@@ -21,15 +21,18 @@ if [ -z "$SERVER_IP" ] || [ -z "$SSH_USER" ]; then
 fi
 
 # 检查其他必要的环境变量
-if [ -z "$NAS_CERT_DIR" ] || [ -z "$NAS_CERT_SITE_NAME" ] || [ -z "$SERVER_CERT_DIR" ] || [ -z "$DOMAIN_PREFIX" ]; then
+if [ -z "$NAS_CERT_DIR" ] || [ -z "$NAS_CERT_SITE_NAME" ] || [ -z "$SERVER_CERT_DIR" ] || [ -z "$DOMAIN_NAME" ]; then
     echo "错误：必需的环境变量未设置"
     echo "请确保在 .env 文件中设置了以下变量："
     echo "- NAS_CERT_DIR（NAS上证书存放的目录）"
     echo "- NAS_CERT_SITE_NAME（证书站点名称）"
     echo "- SERVER_CERT_DIR（服务器上证书存放的目录）"
-    echo "- DOMAIN_PREFIX（域名前缀）"
+    echo "- DOMAIN_NAME （域名）"
     exit 1
 fi
+
+# 截取域名前缀
+DOMAIN_PREFIX = "${DOMAIN_NAME%%.*}"
 
 # 确保目标目录存在
 SERVER_CERT_END_DIR="$SERVER_CERT_DIR/$DOMAIN_PREFIX"
