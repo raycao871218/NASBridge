@@ -33,6 +33,7 @@ PREFIXE = os.getenv('DOMAIN_NAME').split('.', 1)[0]  # 域名前缀
 
 # SSL证书和Nginx配置路径
 CERT_SAVE_PATH = os.getenv('CERT_SAVE_PATH')  # SSL证书保存路径
+KEY_SAVE_PATH = os.getenv('KEY_SAVE_PATH')  # SSL密钥保存路径
 NGINX_CONFIG_PATH_AVAILABLE = os.getenv('NGINX_CONFIG_PATH_AVAILABLE')  # Nginx可用配置目录
 NGINX_CONFIG_PATH_ENABLED = os.getenv('NGINX_CONFIG_PATH_ENABLED')  # Nginx已启用配置目录
 
@@ -41,7 +42,7 @@ OPENWRT_IP = os.getenv('OPENWRT_IP')  # OpenWrt路由器IP地址
 
 FIREWALL_TYPE = os.getenv('FIREWALL_TYPE')  # 防火墙类型
 
-def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None):
+def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None, proxy_ip=None):
     """创建Nginx SSL站点配置
 
     Args:
@@ -61,8 +62,8 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None):
     """
 
     server_name = f"{PREFIXE}.{DOMAIN}"
-    cert_file = f"{CERT_SAVE_PATH}/{PREFIXE}/{server_name}.pem"
-    key_file = f"/{CERT_SAVE_PATH}/{PREFIXE}/{server_name}.key"
+    cert_file = f"{CERT_SAVE_PATH}"
+    key_file = f"/{KEY_SAVE_PATH}"
     conf_file = f"{NGINX_CONFIG_PATH_AVAILABLE}/{PREFIXE}-{usage}-{port}.conf"
 
     # 检查证书文件是否存在（仅在HTTPS模式下）
@@ -107,7 +108,7 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None):
 {ssl_config}
     location / {{
         # 反向代理到OpenWrt服务
-        proxy_pass http{'s' if (proxy_https if proxy_https is not None else https) else ''}://{OPENWRT_IP}:{port};
+        proxy_pass http{'s' if (proxy_https if proxy_https is not None else https) else ''}://{proxy_ip if proxy_ip else OPENWRT_IP}:{port};
         # 设置代理头部
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;{ws_config}
@@ -136,7 +137,7 @@ def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None):
         # 测试配置文件语法是否正确
         subprocess.run(['nginx', '-t'], check=True)
         # 重新加载Nginx服务以应用新配置
-        subprocess.run(['systemctl', 'reload', 'nginx'], check=True)
+        # subprocess.run(['systemctl', 'reload', 'nginx'], check=True)
         # 输出成功信息和访问URL
         print(f"✅ Nginx配置已创建并应用: http{'s' if https else ''}://{server_name}:{port}")
     except subprocess.CalledProcessError as e:
@@ -181,6 +182,7 @@ def main():
     parser.add_argument('--ws', action='store_true', help='启用WebSocket支持')
     parser.add_argument('--proxy-https', action='store_true', dest='proxy_https', help='使用HTTPS协议连接代理目标服务器')
     parser.add_argument('--proxy-http', action='store_false', dest='proxy_https', help='使用HTTP协议连接代理目标服务器')
+    parser.add_argument('--proxy-ip', help='代理目标服务器IP地址（可选，默认使用配置文件中的OPENWRT_IP）')
 
     args = parser.parse_args()
 
@@ -190,7 +192,7 @@ def main():
         sys.exit(1)
 
     # 调用配置生成函数
-    create_nginx_ssl_site(args.port, args.usage, args.https, args.ws, args.proxy_https if hasattr(args, 'proxy_https') else None)
+    create_nginx_ssl_site(args.port, args.usage, args.https, args.ws, args.proxy_https if hasattr(args, 'proxy_https') else None, args.proxy_ip)
 
 if __name__ == '__main__':
     main()

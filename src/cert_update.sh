@@ -46,6 +46,14 @@ generateCrtCommand="acme.sh --force --log --issue --server ${CERT_SERVER} --dns 
 
 installCrtCommand="acme.sh --deploy -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\" --deploy-hook synology_dsm"
 
+# 生成证书
 docker exec ${CERT_DOCKER_CONTAINER} $generateCrtCommand
 
+# 设置证书目录权限为755（所有者可读写执行，其他用户可读和执行）
+docker exec ${CERT_DOCKER_CONTAINER} chmod -R 755 "/root/.acme.sh/${DOMAIN_NAME}"
+
+# 设置证书文件权限为644（所有者可读写，其他用户可读）
+docker exec ${CERT_DOCKER_CONTAINER} find "/root/.acme.sh/${DOMAIN_NAME}" -type f -exec chmod 644 {} \;
+
+# 部署证书到Synology DSM
 docker exec ${CERT_DOCKER_CONTAINER} $installCrtCommand
