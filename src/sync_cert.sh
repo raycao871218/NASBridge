@@ -1,10 +1,13 @@
 #!/bin/bash
 
+# 获取脚本所在目录的上一层目录
+PARENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
+
 # 加载环境变量
-if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+if [ -f "$PARENT_DIR/.env" ]; then
+    export $(cat "$PARENT_DIR/.env" | grep -v '^#' | xargs)
 else
-    echo "错误：未找到 .env 文件"
+    echo "错误：未找到 .env 文件，请确保文件位于 $PARENT_DIR/.env"
     exit 1
 fi
 
