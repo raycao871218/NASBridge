@@ -48,28 +48,45 @@ echo "SERVER_CERT_DIR: $SERVER_CERT_DIR"
 
 
 
-# ssh "$SSH_USER@$SERVER_IP" "mkdir -p $SERVER_CERT_END_DIR"
 
-# # 使用rsync同步证书文件
-# rsync -avz --delete \
-#     "$NAS_CERT_END_DIR/" \
-#     "$SSH_USER@$SERVER_IP:$SERVER_CERT_END_DIR/"
+# 打印将要执行的命令
+echo "\n即将执行以下命令："
+echo "1. 创建目标目录："
+echo "   ssh \"$SSH_USER@$SERVER_IP\" \"mkdir -p $SERVER_CERT_END_DIR\""
+echo "2. 同步证书文件："
+echo "   rsync -avz --delete \"$NAS_CERT_END_DIR/\" \"$SSH_USER@$SERVER_IP:$SERVER_CERT_END_DIR/\""
+echo "3. 重启Nginx服务："
+echo "   ssh \"$SSH_USER@$SERVER_IP\" \"sudo nginx -s reload\""
+echo "\n是否继续执行？(y/n)"
+read -r response
 
+if [[ ! $response =~ ^[Yy]$ ]]; then
+    echo "操作已取消"
+    exit 0
+fi
 
-# # 检查同步是否成功
-# if [ $? -eq 0 ]; then
-#     echo "证书同步成功"
+# 创建目标目录
+ssh "$SSH_USER@$SERVER_IP" "mkdir -p $SERVER_CERT_END_DIR"
+
+# 使用rsync同步证书文件
+rsync -avz --delete \
+    "$NAS_CERT_END_DIR/" \
+    "$SSH_USER@$SERVER_IP:$SERVER_CERT_END_DIR/"
+
+# 检查同步是否成功
+if [ $? -eq 0 ]; then
+    echo "证书同步成功"
     
-#     # 重启Nginx服务以应用新证书
-#     ssh "$SSH_USER@$SERVER_IP" "sudo nginx -s reload"
+    # 重启Nginx服务以应用新证书
+    ssh "$SSH_USER@$SERVER_IP" "sudo nginx -s reload"
     
-#     if [ $? -eq 0 ]; then
-#         echo "Nginx服务已重启"
-#     else
-#         echo "Nginx服务重启失败"
-#         exit 1
-#     fi
-# else
-#     echo "证书同步失败"
-#     exit 1
-# fi
+    if [ $? -eq 0 ]; then
+        echo "Nginx服务已重启"
+    else
+        echo "Nginx服务重启失败"
+        exit 1
+    fi
+else
+    echo "证书同步失败"
+    exit 1
+fi
