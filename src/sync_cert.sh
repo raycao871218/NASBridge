@@ -35,39 +35,12 @@ fi
 SERVER_CERT_END_DIR="$SERVER_CERT_DIR/$DOMAIN_PREFIX"
 NAS_CERT_END_DIR="$NAS_CERT_DIR/$NAS_CERT_SITE_NAME"
 
-# 打印出来
-echo "NAS_CERT_END_DIR: $NAS_CERT_END_DIR"
-echo "SERVER_CERT_END_DIR: $SERVER_CERT_END_DIR"
-
-echo "SSH_USER: $SSH_USER"
-echo "SERVER_IP: $SERVER_IP"
-echo "DOMAIN_PREFIX: $DOMAIN_PREFIX"
-echo "NAS_CERT_SITE_NAME: $NAS_CERT_SITE_NAME"
-echo "NAS_CERT_DIR: $NAS_CERT_DIR"
-echo "SERVER_CERT_DIR: $SERVER_CERT_DIR"
-
-
-
-
-# 打印将要执行的命令
-echo "\n即将执行以下命令："
-echo "1. 创建目标目录："
-echo "   ssh \"$SSH_USER@$SERVER_IP\" \"mkdir -p $SERVER_CERT_END_DIR\""
-echo "2. 同步证书文件："
-echo "   rsync -avz --delete \"$NAS_CERT_END_DIR/\" \"$SSH_USER@$SERVER_IP:$SERVER_CERT_END_DIR/\""
-echo "3. 重启Nginx服务："
-echo "   ssh \"$SSH_USER@$SERVER_IP\" \"sudo nginx -s reload\""
-echo "\n是否继续执行？(y/n)"
-read -r response
-
-if [[ ! $response =~ ^[Yy]$ ]]; then
-    echo "操作已取消"
-    exit 0
-fi
-
+echo "正在同步证书文件..."
+echo "正在执行命令：ssh $SSH_USER@$SERVER_IP mkdir -p $SERVER_CERT_END_DIR"
 # 创建目标目录
 ssh "$SSH_USER@$SERVER_IP" "mkdir -p $SERVER_CERT_END_DIR"
 
+echo "正在执行命令：rsync -avz --delete $NAS_CERT_END_DIR/ $SSH_USER@$SERVER_IP:$SERVER_CERT_END_DIR/"
 # 使用rsync同步证书文件
 rsync -avz --delete \
     "$NAS_CERT_END_DIR/" \
@@ -75,18 +48,19 @@ rsync -avz --delete \
 
 # 检查同步是否成功
 if [ $? -eq 0 ]; then
-    echo "证书同步成功"
+    echo "✅ 证书同步成功"
     
+    echo "正在重启Nginx服务..."
     # 重启Nginx服务以应用新证书
     ssh "$SSH_USER@$SERVER_IP" "sudo nginx -s reload"
     
     if [ $? -eq 0 ]; then
-        echo "Nginx服务已重启"
+        echo "✅ Nginx服务已重启"
     else
-        echo "Nginx服务重启失败"
+        echo "❌ Nginx服务重启失败"
         exit 1
     fi
 else
-    echo "证书同步失败"
+    echo "❌ 证书同步失败"
     exit 1
 fi
