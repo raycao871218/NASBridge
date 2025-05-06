@@ -9,7 +9,7 @@ Nginx SSL站点配置生成工具
 - 自动创建和管理Nginx配置文件
 
 环境变量要求：
-- DOMAIN_NAME: 完整域名 (例如: azk.nagaiuta.life)
+- DOMAIN_NAME: 完整域名 (例如: abc.123.com)
 - CERT_SAVE_PATH: SSL证书保存路径
 - NGINX_CONFIG_PATH_AVAILABLE: Nginx可用配置文件目录
 - NGINX_CONFIG_PATH_ENABLED: Nginx已启用配置文件目录

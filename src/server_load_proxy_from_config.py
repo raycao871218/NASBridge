@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Nginx配置更新工具
+代理服务器配置更新工具
 
-此脚本用于读取services.conf配置文件，并根据配置内容自动调用server_create_nginx_proxy.py
-来创建或更新Nginx的站点配置。
+此脚本用于读取services.conf配置文件，并根据配置内容自动调用相应的配置生成器
+（server_create_nginx_proxy.py 或 server_create_caddy_proxy.py）来创建或更新站点配置。
 
 配置文件格式：
 服务名称 端口 是否HTTPS(true/false) 是否需要websocket 反向代理是否为https 反向代理目标地址
@@ -80,8 +80,8 @@ def read_services_config(config_file):
         
     return services
 
-def get_nginx_config_path(service_name, port):
-    """获取Nginx配置文件路径
+def get_config_path(service_name, port):
+    """获取配置文件路径
 
     Args:
         service_name (str): 服务名称
@@ -90,16 +90,25 @@ def get_nginx_config_path(service_name, port):
     Returns:
         str: 配置文件路径
     """
-    nginx_config_path = os.getenv('NGINX_CONFIG_PATH_AVAILABLE')
-    if not nginx_config_path:
-        print("❌ 环境变量NGINX_CONFIG_PATH_AVAILABLE未设置")
-        sys.exit(1)
+    proxy_type = os.getenv('PROXY_SERVER_TYPE', 'nginx').lower()
+    if proxy_type == 'nginx':
+        config_path = os.getenv('NGINX_CONFIG_PATH_AVAILABLE')
+        if not config_path:
+            print("❌ 环境变量NGINX_CONFIG_PATH_AVAILABLE未设置")
+            sys.exit(1)
+        ext = '.conf'
+    else:  # caddy
+        config_path = os.getenv('CADDY_CONFIG_PATH')
+        if not config_path:
+            print("❌ 环境变量CADDY_CONFIG_PATH未设置")
+            sys.exit(1)
+        ext = '.caddy'
         
     domain_prefix = os.getenv('DOMAIN_NAME', '').split('.', 1)[0]
-    return os.path.join(nginx_config_path, f"{domain_prefix}-{service_name}-{port}.conf")
+    return os.path.join(config_path, f"{domain_prefix}-{service_name}-{port}{ext}")
 
-def create_nginx_config(service):
-    """为服务创建Nginx配置
+def create_proxy_config(service):
+    """为服务创建代理配置
 
     Args:
         service (tuple): (服务名, 端口, https, ws, proxy_https, proxy_ip)
@@ -107,13 +116,19 @@ def create_nginx_config(service):
     name, port, https, ws, proxy_https, proxy_ip = service
     
     # 检查配置文件是否已存在
-    config_path = get_nginx_config_path(name, port)
+    config_path = get_config_path(name, port)
     if os.path.exists(config_path):
         print(f"ℹ️ 跳过已存在的配置: {name} (端口: {port})")
         return
         
-    # 构建server_create_nginx_proxy.py的命令行参数
-    script_path = os.path.join(os.path.dirname(__file__), 'server_create_nginx_proxy.py')
+    # 根据代理服务器类型选择配置生成器
+    proxy_type = os.getenv('PROXY_SERVER_TYPE', 'nginx').lower()
+    if proxy_type == 'nginx':
+        script_name = 'server_create_nginx_proxy.py'
+    else:  # caddy
+        script_name = 'server_create_caddy_proxy.py'
+        
+    script_path = os.path.join(os.path.dirname(__file__), script_name)
     cmd = [
         sys.executable,
         script_path,
@@ -153,14 +168,19 @@ def main():
         
     # 为每个服务创建配置
     for service in services:
-        create_nginx_config(service)
+        create_proxy_config(service)
         
-    # 重新加载Nginx配置
+    # 重新加载代理服务器配置
     try:
-        subprocess.run(['nginx', '-s', 'reload'], check=True)
-        print("✅ Nginx配置已重新加载")
+        proxy_type = os.getenv('PROXY_SERVER_TYPE', 'nginx').lower()
+        if proxy_type == 'nginx':
+            subprocess.run(['nginx', '-s', 'reload'], check=True)
+            print("✅ Nginx配置已重新加载")
+        else:  # caddy
+            subprocess.run(['systemctl', 'reload', 'caddy'], check=True)
+            print("✅ Caddy配置已重新加载")
     except subprocess.CalledProcessError as e:
-        print(f"❌ Nginx配置重新加载失败: {e}")
+        print(f"❌ 代理服务器配置重新加载失败: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':
