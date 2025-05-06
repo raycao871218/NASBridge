@@ -109,12 +109,12 @@
 #### 部署步骤
 基础配置同方案一，额外步骤：
 
-1. 证书同步配置
+1. 在NAS中执行证书同步脚本
    ```bash
    # 方式一：使用项目提供的同步脚本
    src/nas_sync_cert.sh
    
-   # 方式二：使用caddy/certbot（需单独维护证书）
+   # 方式二：使用caddy/certbot（需单独维护证书）可跳过该步骤
    ```
 
 2. 服务器配置
@@ -123,11 +123,11 @@
    - 配置环境变量：复制`.env.example`为`.env`
    - 配置反向代理：修改`services.conf`
 
-3. Web服务器安装
+3. 服务器中，Web服务器安装
    - 支持nginx或caddy
    - 建议使用caddy（自动管理SSL证书）
 
-4. 反向代理配置
+4. 服务器中，反向代理配置
    ```bash
    # 方式一：自动配置（推荐）
    python3 server_load_proxy_from_config.py
