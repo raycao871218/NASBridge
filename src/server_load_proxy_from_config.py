@@ -2,7 +2,7 @@
 """
 Nginx配置更新工具
 
-此脚本用于读取services.conf配置文件，并根据配置内容自动调用create_nginx_ssl_site.py
+此脚本用于读取services.conf配置文件，并根据配置内容自动调用server_create_nginx_proxy.py
 来创建或更新Nginx的站点配置。
 
 配置文件格式：
@@ -112,8 +112,8 @@ def create_nginx_config(service):
         print(f"ℹ️ 跳过已存在的配置: {name} (端口: {port})")
         return
         
-    # 构建create_nginx_ssl_site.py的命令行参数
-    script_path = os.path.join(os.path.dirname(__file__), 'create_nginx_ssl_site.py')
+    # 构建server_create_nginx_proxy.py的命令行参数
+    script_path = os.path.join(os.path.dirname(__file__), 'server_create_nginx_proxy.py')
     cmd = [
         sys.executable,
         script_path,

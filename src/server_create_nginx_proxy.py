@@ -42,7 +42,7 @@ OPENWRT_IP = os.getenv('OPENWRT_IP')  # OpenWrt路由器IP地址
 
 FIREWALL_TYPE = os.getenv('FIREWALL_TYPE')  # 防火墙类型
 
-def create_nginx_ssl_site(port, usage, https=True, ws=False, proxy_https=None, proxy_ip=None):
+def server_create_nginx_proxy(port, usage, https=True, ws=False, proxy_https=None, proxy_ip=None):
     """创建Nginx SSL站点配置
 
     Args:
@@ -170,10 +170,10 @@ def main():
     - --ws: 可选，启用WebSocket支持
 
     示例：
-        python3 create_nginx_ssl_site.py 8080 myapp --ws  # 创建HTTPS+WS站点
-        python3 create_nginx_ssl_site.py 8080 myapp --no-https  # 创建HTTP站点
-        python3 create_nginx_ssl_site.py 8080 myapp --proxy-https  # 使用HTTPS协议连接代理服务器
-        python3 create_nginx_ssl_site.py 8080 myapp --proxy-http  # 使用HTTP协议连接代理服务器
+        python3 server_create_nginx_proxy.py 8080 myapp --ws  # 创建HTTPS+WS站点
+        python3 server_create_nginx_proxy.py 8080 myapp --no-https  # 创建HTTP站点
+        python3 server_create_nginx_proxy.py 8080 myapp --proxy-https  # 使用HTTPS协议连接代理服务器
+        python3 server_create_nginx_proxy.py 8080 myapp --proxy-http  # 使用HTTP协议连接代理服务器
     """
     parser = argparse.ArgumentParser(description='创建Nginx SSL站点配置')
     parser.add_argument('port', type=int, help='端口号')
@@ -192,7 +192,7 @@ def main():
         sys.exit(1)
 
     # 调用配置生成函数
-    create_nginx_ssl_site(args.port, args.usage, args.https, args.ws, args.proxy_https if hasattr(args, 'proxy_https') else None, args.proxy_ip)
+    server_create_nginx_proxy(args.port, args.usage, args.https, args.ws, args.proxy_https if hasattr(args, 'proxy_https') else None, args.proxy_ip)
 
 if __name__ == '__main__':
     main()
