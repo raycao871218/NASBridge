@@ -2,7 +2,7 @@ import ssl
 import socket
 import json
 import os
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Tuple, Optional
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
@@ -42,8 +42,8 @@ def check_ssl_expiry(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
                 cert = ssock.getpeercert()
                 
                 # 获取证书过期时间
-                expire_date = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y GMT').replace(tzinfo=UTC)
-                current_date = datetime.now(UTC)
+                expire_date = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y GMT').replace(tzinfo=timezone.utc)
+                current_date = datetime.now(timezone.utc)
                 
                 # 检查是否过期
                 is_valid = expire_date > current_date
@@ -60,8 +60,8 @@ def check_ssl_expiry(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
 # 使用示例
 def format_time_remaining(expire_date_str: str) -> str:
     """格式化剩余时间"""
-    expire_date = datetime.strptime(expire_date_str, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=UTC)
-    now = datetime.now(UTC)
+    expire_date = datetime.strptime(expire_date_str, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     remaining = expire_date - now
     
     days = remaining.days
@@ -113,7 +113,7 @@ def save_check_result(url: str, is_valid: bool, expire_date: Optional[str], erro
     log_path = os.path.join(log_dir, 'ssl_check.log')
     
     # 获取当前时间
-    check_time = datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S %Z')
+    check_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
     
     # 生成状态信息
     if error:
@@ -189,8 +189,8 @@ if __name__ == '__main__':
             warning_messages.append(message)
         elif expire_date:
             # 解析过期时间
-            expire_time = datetime.strptime(expire_date, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=UTC)
-            days_remaining = (expire_time - datetime.now(UTC)).days
+            expire_time = datetime.strptime(expire_date, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=timezone.utc)
+            days_remaining = (expire_time - datetime.now(timezone.utc)).days
             
             # 如果剩余天数小于10天，输出警告
             if days_remaining < 10:
