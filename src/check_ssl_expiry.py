@@ -197,7 +197,7 @@ if __name__ == '__main__':
             days_remaining = (expire_time - datetime.now(timezone.utc)).days
             
             # 如果剩余天数小于10天，输出警告
-            if days_remaining < 90:
+            if days_remaining < 10:
                 remaining_time = format_time_remaining(expire_date)
                 icon = "⚠️"
                 status = "即将过期" if is_valid else "已过期"
