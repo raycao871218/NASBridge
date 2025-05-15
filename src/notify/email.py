@@ -8,6 +8,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
+from email.mime.application import MIMEApplication
 
 class EmailNotifier:
     def __init__(self, smtp_server, smtp_port, username, password, sender, receivers):
@@ -39,12 +40,13 @@ class EmailNotifier:
         except Exception as e:
             return None, f"连接错误：{str(e)}"
 
-    def send_message(self, subject, message, content_type="html"):
+    def send_message(self, subject, message, content_type="html", attachments=None):
         """
         发送邮件
         :param subject: 邮件主题
         :param message: 邮件内容
         :param content_type: 内容类型（html或plain）
+        :param attachments: 附件文件路径列表（可选）
         :return: 是否发送成功
         """
         # 创建SMTP连接
@@ -63,6 +65,17 @@ class EmailNotifier:
 
             # 添加邮件内容
             msg.attach(MIMEText(message.replace('\n', '<br />'), content_type, 'utf-8'))
+
+            # 添加附件
+            if attachments:
+                for file_path in attachments:
+                    if not os.path.isfile(file_path):
+                        print(f"警告：附件文件不存在: {file_path}")
+                        continue
+                    with open(file_path, 'rb') as f:
+                        part = MIMEApplication(f.read(), Name=os.path.basename(file_path))
+                        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+                        msg.attach(part)
 
             # 发送邮件
             server.send_message(msg)

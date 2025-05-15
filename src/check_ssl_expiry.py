@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Tuple, Optional, List
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
+from notify.ics_util import create_ics_file_multi
 
 def parse_host_port(url: str) -> Tuple[str, int]:
     """解析URL，分离主机名和端口号
@@ -169,6 +170,7 @@ if __name__ == '__main__':
         receivers=os.getenv('EMAIL_RECEIVERS')
     )
     warning_messages = []
+    warning_events = []  # 新增：用于收集即将过期的证书(domain, expire_date_str)
     
     for url in domains:
         print(f"正在检查: {url}...")
@@ -195,7 +197,7 @@ if __name__ == '__main__':
             days_remaining = (expire_time - datetime.now(timezone.utc)).days
             
             # 如果剩余天数小于10天，输出警告
-            if days_remaining < 10:
+            if days_remaining < 90:
                 remaining_time = format_time_remaining(expire_date)
                 icon = "⚠️"
                 status = "即将过期" if is_valid else "已过期"
@@ -205,16 +207,23 @@ if __name__ == '__main__':
                 else:
                     url_format = f"https://{url}"
                 # 格式化消息
-                message = f"{icon} {url_format} \n    状态：{status}\n    过期时间：{expire_date}\n    剩余时间：{remaining_time}"
+                message = f"{icon} {url_format} \n    状态：{status}\n    过期时间：{expire_date}\n    剩余时间：{remaining_time} \n"
                 print(message)
                 warning_messages.append(message)
+                warning_events.append((url, expire_date))  # 新增：收集即将过期的证书
 
     # 发送通知
     if warning_messages:
         message = "🔒 SSL证书状态警告\n\n" + "\n\n".join(warning_messages)
+        # 生成ics附件（如果有即将过期的证书）
+        ics_path = None
+        if warning_events:
+            today_str = datetime.now().strftime('%Y%m%d')
+            ics_path = os.path.join(project_root, 'log', f'ssl_expiry_events_{today_str}.ics')
+            create_ics_file_multi(warning_events, ics_path)
         # 发送通知
         success, error = telegram_notifier.send_message(message)
-        email_success = email_notifier.send_message("SSL证书状态警告", message)
+        email_success = email_notifier.send_message("SSL证书状态警告", message, attachments=[ics_path] if ics_path else None)
         if not success:
             print(f"\n发送Telegram通知失败：{error}")
         if not email_success:
