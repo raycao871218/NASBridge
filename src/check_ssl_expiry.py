@@ -227,3 +227,4 @@ if __name__ == '__main__':
             print(f"\n发送Telegram通知失败：{error}")
         # 发送邮件通知
         email_notifier.send_message("SSL证书状态通知", message)
+        print("\n✅ 所有SSL证书检查通过，状态正常")
