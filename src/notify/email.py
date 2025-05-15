@@ -17,6 +17,7 @@ class EmailNotifier:
         self.password = password
         self.sender = sender
         self.receivers = receivers.split(',') if isinstance(receivers, str) else receivers
+        self._server = None
 
     def _create_smtp_connection(self):
         """
@@ -56,18 +57,15 @@ class EmailNotifier:
         try:
             # 创建邮件对象
             msg = MIMEMultipart()
-            msg['From'] = f"{Header('Log Notifier', 'utf-8')} <{self.sender}>"
+            msg['From'] = f"{Header('NASBridge Bot', 'utf-8')} <{self.sender}>"
             msg['To'] = ','.join(self.receivers)
             msg['Subject'] = Header(subject, 'utf-8')
 
             # 添加邮件内容
-            msg.attach(MIMEText(message, content_type, 'utf-8'))
+            msg.attach(MIMEText(message.replace('\n', '<br />'), content_type, 'utf-8'))
 
             # 发送邮件
             server.send_message(msg)
-            print("✓ SMTP服务器连接成功！")
-            print(f"✓ 邮件服务器: {self.smtp_server}")
-            print("✓ 邮件发送成功！")
             return True
 
         except Exception as e:
@@ -173,33 +171,12 @@ def read_log_content(log_files):
     
     return "\n".join(content) if content else "日志内容为空"
 
-def main():
-    # 检查命令行参数
-    if len(sys.argv) < 2:
-        print(f"使用方法: {sys.argv[0]} <消息内容>")
-        print(f"或者: {sys.argv[0]} --log [YYYY-MM-DD]")
-        sys.exit(1)
-    
+if __name__ == "__main__":
     # 加载配置
-    smtp_server, smtp_port, username, password, sender, receivers, log_dir = load_env_config()
+    smtp_server, smtp_port, username, password, sender, receivers, _ = load_env_config()
     
     # 创建通知器实例
     notifier = EmailNotifier(smtp_server, smtp_port, username, password, sender, receivers)
     
-    # 处理参数
-    if sys.argv[1] == '--log':
-        # 日志模式
-        date_str = sys.argv[2] if len(sys.argv) > 2 else None
-        log_files = find_log_file(log_dir, date_str)
-        message = read_log_content(log_files)
-        subject = f"日志通知 - {date_str if date_str else datetime.now().strftime('%Y-%m-%d')}"
-    else:
-        # 普通消息模式
-        message = " ".join(sys.argv[1:])
-        subject = "系统通知"
-    
-    # 发送消息
-    notifier.send_message(subject, message)
-
-if __name__ == "__main__":
-    main() 
+    # 示例：发送测试邮件
+    notifier.send_message("测试邮件", "这是一个测试邮件")
