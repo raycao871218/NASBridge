@@ -37,6 +37,10 @@ ENV/
 .env.*.local 
 services.conf
 
+domains.conf
+
+/log
+
 # OS
 .DS_Store
 Thumbs.db 
