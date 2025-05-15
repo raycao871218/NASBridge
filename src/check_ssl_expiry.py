@@ -3,7 +3,7 @@ import socket
 import json
 import os
 from datetime import datetime, timezone
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 
@@ -73,7 +73,7 @@ def format_time_remaining(expire_date_str: str) -> str:
         hours = remaining.seconds // 3600
         return f"{hours}小时"
 
-def load_domains(config_file: str = 'domains.conf') -> list[str]:
+def load_domains(config_file: str = 'domains.conf') -> List[str]:
     """从配置文件加载域名列表
 
     Args:
