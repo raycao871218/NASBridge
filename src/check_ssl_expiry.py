@@ -171,6 +171,8 @@ if __name__ == '__main__':
     warning_messages = []
     
     for url in domains:
+        print(f"正在检查: {url}...")
+
         is_valid, expire_date, error = check_ssl_expiry(url)
         
         # 保存检查结果到日志
