@@ -1,0 +1,32 @@
+# 统一配置文件示例 domains_config.yaml.example
+
+zt_ip:
+  - name: host         # 主机名标识
+    ip: 10.11.0.168    # 内网或外网IP
+  - name: router
+    ip: 10.11.0.62
+  - name: nas
+    ip: 10.11.0.66
+  # ... 可继续添加
+
+domains:
+  - example.com
+  - sub.example.com
+  # - another.domain.com:端口
+
+services:
+  - name: nas                # 服务名称
+    port: 5001               # 端口号
+    https: true              # 是否启用HTTPS
+    websocket: false         # 是否启用WebSocket
+    proxy_https: true        # 反向代理到目标时是否用HTTPS
+    target: NAS_IP           # 目标主机（可用zt_ip中的name或直接写IP）
+
+  - name: homeassistant
+    port: 18123
+    https: true
+    websocket: true
+    proxy_https: true
+    target: NAS_IP
+
+  # 更多服务可按上述格式添加 
