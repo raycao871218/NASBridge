@@ -1,6 +1,0 @@
-# 示例配置文件
-# 每行一个域名，格式为：域名:端口
-# youtube.com
-# google.com
-# example.com:443
-# another-example.com:8080

@@ -22,62 +22,41 @@ import sys
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
+import yaml
 
 # 加载环境变量
 load_dotenv()
 
-def read_services_config(config_file):
-    """读取services.conf配置文件
+def read_services_config_from_yaml(yaml_path):
+    """从domains_config.yaml读取服务配置
 
     Args:
-        config_file (str): 配置文件路径
+        yaml_path (str): yaml配置文件路径
 
     Returns:
         list: 服务配置列表，每个元素为(服务名, 端口, https, ws, proxy_https, proxy_ip)
     """
     services = []
     try:
-        with open(config_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                # 跳过注释和空行
-                line = line.strip()
-                if not line or line.startswith('#'):
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            zt_ip_map = {item['name']: item['ip'] for item in config.get('zt_ip', [])}
+            for svc in config.get('services', []):
+                name = svc.get('name')
+                port = svc.get('port')
+                https = svc.get('https', True)
+                ws = svc.get('websocket', False)
+                proxy_https = svc.get('proxy_https', True)
+                target = svc.get('target')
+                # 解析target为实际IP
+                proxy_ip = zt_ip_map.get(target, target)
+                if not proxy_ip:
+                    print(f"⚠️ 代理目标地址未配置: {target}")
                     continue
-                
-                # 解析配置行
-                try:
-                    name, port, https, ws, proxy_https, proxy_target = line.split()
-                    # 处理代理目标地址
-                    if proxy_target == 'NAS_IP':
-                        proxy_ip = os.getenv('NAS_IP')
-                    elif proxy_target == 'OPENWRT_IP':
-                        proxy_ip = os.getenv('OPENWRT_IP')
-                    else:
-                        proxy_ip = proxy_target
-                        
-                    if not proxy_ip:
-                        print(f"⚠️ 代理目标地址未配置: {proxy_target}")
-                        continue
-                        
-                    services.append((
-                        name,
-                        int(port),
-                        https.lower() == 'true',
-                        ws.lower() == 'true',
-                        proxy_https.lower() == 'true',
-                        proxy_ip
-                    ))
-                except ValueError as e:
-                    print(f"⚠️ 配置行格式错误: {line}")
-                    continue
-                
-    except FileNotFoundError:
-        print(f"❌ 配置文件不存在: {config_file}")
-        sys.exit(1)
+                services.append((name, int(port), https, ws, proxy_https, proxy_ip))
     except Exception as e:
-        print(f"❌ 读取配置文件失败: {e}")
+        print(f"❌ 读取YAML配置文件失败: {e}")
         sys.exit(1)
-        
     return services
 
 def get_config_path(service_name, port):
@@ -158,18 +137,15 @@ def create_proxy_config(service):
 def main():
     """主函数"""
     # 获取配置文件路径
-    config_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'services.conf')
-    
+    yaml_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'domains_config.yaml')
     # 读取服务配置
-    services = read_services_config(config_file)
+    services = read_services_config_from_yaml(yaml_path)
     if not services:
         print("⚠️ 未找到有效的服务配置")
         return
-        
     # 为每个服务创建配置
     for service in services:
         create_proxy_config(service)
-        
     # 重新加载代理服务器配置
     try:
         proxy_type = os.getenv('PROXY_SERVER_TYPE', 'nginx').lower()

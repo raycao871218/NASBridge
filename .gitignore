@@ -38,6 +38,7 @@ ENV/
 services.conf
 
 domains.conf
+*.yaml
 
 /log
 

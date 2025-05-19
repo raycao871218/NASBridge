@@ -7,6 +7,7 @@ from typing import Tuple, Optional, List
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 from notify.ics_util import create_ics_file_multi
+import yaml  # 新增：用于解析YAML配置文件
 
 def parse_host_port(url: str) -> Tuple[str, int]:
     """解析URL，分离主机名和端口号
@@ -74,24 +75,20 @@ def format_time_remaining(expire_date_str: str) -> str:
         hours = remaining.seconds // 3600
         return f"{hours}小时"
 
-def load_domains(config_file: str = 'domains.conf') -> List[str]:
-    """从配置文件加载域名列表
+def load_domains(config_file: str = 'domains_config.yaml') -> List[str]:
+    """从YAML配置文件加载域名列表
 
     Args:
-        config_file: 配置文件路径，默认为domains.conf
+        config_file: 配置文件路径，默认为domains_config.yaml
 
     Returns:
         list[str]: 域名列表
     """
-    domains = []
     try:
-        with open(config_file, 'r') as f:
-            for line in f:
-                # 去除注释和空白行
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    domains.append(line)
-        return domains
+        with open(config_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            domains = data.get('domains', [])
+            return domains
     except FileNotFoundError:
         print(f"错误: 找不到配置文件 {config_file}")
         return []
@@ -150,7 +147,7 @@ if __name__ == '__main__':
     # 获取项目根目录的路径（脚本所在目录的上一级）
     project_root = os.path.dirname(script_dir)
     # 构建配置文件的完整路径
-    config_path = os.path.join(project_root, 'domains.conf')
+    config_path = os.path.join(project_root, 'domains_config.yaml')
     
     domains = load_domains(config_path)
     if not domains:
