@@ -80,13 +80,19 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
             print(f"执行 nginx -s reload 失败: {e}")
 
 def print_ip_reachability(ip_list):
+    name_map = {}
+    if NAS_IP:
+        name_map[NAS_IP] = 'NAS'
+    if OPENWRT_IP:
+        name_map[OPENWRT_IP] = 'OPENWRT'
     all_unreachable = True
     for ip in ip_list:
+        name = name_map.get(ip, ip)
         if ping_host(ip):
-            print(f"✅ {ip} 可达")
+            print(f"✅ {name}（{ip}）可达")
             all_unreachable = False
         else:
-            print(f"❌ {ip} 不可达")
+            print(f"❌ {name}（{ip}）不可达")
     return all_unreachable
 
 def main():
