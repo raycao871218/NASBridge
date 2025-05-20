@@ -35,6 +35,8 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
         print(f"❌ Nginx 配置目录未找到: {conf_dir}")
         return
     reload_needed = False
+    switch_to_nas = False
+    switch_to_openwrt = False
     for filename in os.listdir(conf_dir):
         if not filename.endswith('.conf'):
             continue
@@ -58,6 +60,10 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                     print(f"[{filename}] 替换 proxy_pass: {ip} -> {new_ip}")
                     new_conf = new_conf.replace(f"{prefix}{ip}{port}", f"{prefix}{new_ip}{port}")
                     changed = True
+                    if new_ip == NAS_IP:
+                        switch_to_nas = True
+                    elif new_ip == OPENWRT_IP:
+                        switch_to_openwrt = True
                 else:
                     print(f"[{filename}] ❌ 没有可用的IP替换 {ip}")
         if changed:
@@ -78,6 +84,18 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                 print(f"nginx -s reload 执行失败: {result.stderr}")
         except Exception as e:
             print(f"执行 nginx -s reload 失败: {e}")
+    # Telegram通知
+    if switch_to_nas or switch_to_openwrt:
+        try:
+            notifier = TelegramNotifier()
+            if switch_to_nas:
+                msg = "<b>Nginx代理切换通知</b>\n已切换到 <b>NAS</b>"
+                notifier.send_message(msg, parse_mode="HTML")
+            if switch_to_openwrt:
+                msg = "<b>Nginx代理切换通知</b>\n已切换到 <b>OPENWRT</b>"
+                notifier.send_message(msg, parse_mode="HTML")
+        except Exception as e:
+            print(f"发送Telegram切换通知失败: {e}")
 
 def print_ip_reachability(ip_list):
     name_map = {}
