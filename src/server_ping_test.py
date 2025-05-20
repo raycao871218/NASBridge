@@ -90,9 +90,11 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
             notifier = TelegramNotifier()
             if switch_to_nas:
                 msg = "🚦 Nginx代理切换通知\n已切换到 🖥️ NAS"
+                print(f"Sending Telegram notification: {msg}")
                 notifier.send_message(msg)
             if switch_to_openwrt:
                 msg = "🚦 Nginx代理切换通知\n已切换到 📶 OPENWRT"
+                print(f"Sending Telegram notification: {msg}")
                 notifier.send_message(msg)
         except Exception as e:
             print(f"发送Telegram切换通知失败: {e}")
