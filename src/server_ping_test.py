@@ -34,6 +34,8 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
         print(f"❌ Nginx 配置目录未找到: {conf_dir}")
         return
     for filename in os.listdir(conf_dir):
+        if not filename.endswith('.conf'):
+            continue
         file_path = os.path.join(conf_dir, filename)
         if not os.path.isfile(file_path):
             continue
