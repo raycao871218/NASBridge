@@ -23,10 +23,11 @@ def ping_host(host):
     except Exception:
         return False
 
-def get_first_reachable_ip(ip_list):
-    for ip in ip_list:
-        if ping_host(ip):
-            return ip
+def get_first_reachable_ip_with_priority(nas_ip, openwrt_ip):
+    if nas_ip and ping_host(nas_ip):
+        return nas_ip
+    if openwrt_ip and ping_host(openwrt_ip):
+        return openwrt_ip
     return None
 
 def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
@@ -52,7 +53,7 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
         for m in matches:
             prefix, ip, port = m.group(1), m.group(2), m.group(3) or ''
             if not ping_host(ip):
-                new_ip = get_first_reachable_ip(candidate_ips)
+                new_ip = get_first_reachable_ip_with_priority(NAS_IP, OPENWRT_IP)
                 if new_ip and new_ip != ip:
                     print(f"[{filename}] 替换 proxy_pass: {ip} -> {new_ip}")
                     new_conf = new_conf.replace(f"{prefix}{ip}{port}", f"{prefix}{new_ip}{port}")
