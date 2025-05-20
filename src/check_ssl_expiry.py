@@ -158,14 +158,7 @@ if __name__ == '__main__':
     
     # 初始化通知器
     telegram_notifier = TelegramNotifier()
-    email_notifier = EmailNotifier(
-        smtp_server=os.getenv('SMTP_SERVER'),
-        smtp_port=int(os.getenv('SMTP_PORT', '587')),
-        username=os.getenv('SMTP_USERNAME'),
-        password=os.getenv('SMTP_PASSWORD'),
-        sender=os.getenv('EMAIL_SENDER'),
-        receivers=os.getenv('EMAIL_RECEIVERS')
-    )
+    email_notifier = EmailNotifier()
     warning_messages = []
     warning_events = []  # 新增：用于收集即将过期的证书(domain, expire_date_str)
     

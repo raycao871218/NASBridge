@@ -9,15 +9,23 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.mime.application import MIMEApplication
+from email.mime.base import MIMEBase
+from email import encoders
 
 class EmailNotifier:
-    def __init__(self, smtp_server, smtp_port, username, password, sender, receivers):
+    def __init__(self, receivers=None):
+        # 加载配置
+        smtp_server, smtp_port, username, password, sender, env_receivers, _ = load_env_config()
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.username = username
         self.password = password
         self.sender = sender
-        self.receivers = receivers.split(',') if isinstance(receivers, str) else receivers
+        # 优先使用传入的receivers，否则用.env中的
+        if receivers is not None:
+            self.receivers = receivers.split(',') if isinstance(receivers, str) else receivers
+        else:
+            self.receivers = env_receivers.split(',') if isinstance(env_receivers, str) else env_receivers
         self._server = None
 
     def _create_smtp_connection(self):
@@ -49,22 +57,23 @@ class EmailNotifier:
         :param attachments: 附件文件路径列表（可选）
         :return: 是否发送成功
         """
-        # 创建SMTP连接
-        server, error_msg = self._create_smtp_connection()
-        if not server:
-            print(f"错误：无法连接到SMTP服务器")
-            print(f"原因：{error_msg}")
-            return False
-
         try:
             # 创建邮件对象
-            msg = MIMEMultipart()
+            if attachments:
+                msg = MIMEMultipart()
+            else:
+                # 推荐用alternative支持纯文本和HTML
+                msg = MIMEMultipart('alternative')
+
             msg['From'] = f"{Header('NASBridge Bot', 'utf-8')} <{self.sender}>"
             msg['To'] = ','.join(self.receivers)
             msg['Subject'] = Header(subject, 'utf-8')
 
             # 添加邮件内容
-            msg.attach(MIMEText(message.replace('\n', '<br />'), content_type, 'utf-8'))
+            if content_type == "html":
+                msg.attach(MIMEText(message.replace('\n', '<br />'), "html", 'utf-8'))
+            else:
+                msg.attach(MIMEText(message, "plain", 'utf-8'))
 
             # 添加附件
             if attachments:
@@ -73,22 +82,31 @@ class EmailNotifier:
                         print(f"警告：附件文件不存在: {file_path}")
                         continue
                     with open(file_path, 'rb') as f:
-                        part = MIMEApplication(f.read(), Name=os.path.basename(file_path))
-                        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+                        part = MIMEBase('application', 'octet-stream')
+                        part.set_payload(f.read())
+                        encoders.encode_base64(part)
+                        part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(file_path)}"')
                         msg.attach(part)
 
-            # 发送邮件
-            server.send_message(msg)
+            # 使用with上下文管理SMTP连接
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as server:
+                server.ehlo()
+                if server.has_extn('STARTTLS'):
+                    server.starttls()
+                    server.ehlo()
+                server.login(self.username, self.password)
+                # sendmail推荐to参数用list
+                server.sendmail(self.sender, self.receivers, msg.as_string())
             return True
-
+        except smtplib.SMTPAuthenticationError:
+            print("认证失败，请检查用户名和密码")
+            return False
+        except smtplib.SMTPException as e:
+            print(f"SMTP错误：{str(e)}")
+            return False
         except Exception as e:
             print(f"发送邮件时出错：{str(e)}")
             return False
-        finally:
-            try:
-                server.quit()
-            except Exception:
-                pass
 
 def load_env_config():
     """
@@ -185,11 +203,7 @@ def read_log_content(log_files):
     return "\n".join(content) if content else "日志内容为空"
 
 if __name__ == "__main__":
-    # 加载配置
-    smtp_server, smtp_port, username, password, sender, receivers, _ = load_env_config()
-    
     # 创建通知器实例
-    notifier = EmailNotifier(smtp_server, smtp_port, username, password, sender, receivers)
-    
+    notifier = EmailNotifier()
     # 示例：发送测试邮件
     notifier.send_message("测试邮件", "这是一个测试邮件")

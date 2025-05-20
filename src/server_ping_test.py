@@ -93,14 +93,7 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                 msg = "🚦 Nginx代理切换通知\n已切换到 🖥️ NAS"
                 for notify_type in notify_types:
                     if notify_type == 'email':
-                        notifier = EmailNotifier(
-                            os.getenv('SMTP_SERVER'),
-                            int(os.getenv('SMTP_PORT', '587')),
-                            os.getenv('SMTP_USERNAME'),
-                            os.getenv('SMTP_PASSWORD'),
-                            os.getenv('EMAIL_SENDER'),
-                            os.getenv('EMAIL_RECEIVERS')
-                        )
+                        notifier = EmailNotifier()
                         print(f"Sending email notification: {msg}")
                         notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
                     elif notify_type == 'telegram':
@@ -111,14 +104,7 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                 msg = "🚦 Nginx代理切换通知\n已切换到 📶 OPENWRT"
                 for notify_type in notify_types:
                     if notify_type == 'email':
-                        notifier = EmailNotifier(
-                            os.getenv('SMTP_SERVER'),
-                            int(os.getenv('SMTP_PORT', '587')),
-                            os.getenv('SMTP_USERNAME'),
-                            os.getenv('SMTP_PASSWORD'),
-                            os.getenv('EMAIL_SENDER'),
-                            os.getenv('EMAIL_RECEIVERS')
-                        )
+                        notifier = EmailNotifier()
                         print(f"Sending email notification: {msg}")
                         notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
                     elif notify_type == 'telegram':
@@ -153,14 +139,7 @@ def main():
             notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
             for notify_type in notify_types:
                 if notify_type == 'email':
-                    notifier = EmailNotifier(
-                        os.getenv('SMTP_SERVER'),
-                        int(os.getenv('SMTP_PORT', '587')),
-                        os.getenv('SMTP_USERNAME'),
-                        os.getenv('SMTP_PASSWORD'),
-                        os.getenv('EMAIL_SENDER'),
-                        os.getenv('EMAIL_RECEIVERS')
-                    )
+                    notifier = EmailNotifier()
                     print("Sending email notification: 所有候选IP均不可达，请检查网络！")
                     success = notifier.send_message("所有候选IP均不可达", "所有候选IP均不可达，请检查网络！", content_type="plain")
                     if success:
