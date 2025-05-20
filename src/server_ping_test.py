@@ -33,6 +33,7 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
     if not conf_dir or not os.path.isdir(conf_dir):
         print(f"❌ Nginx 配置目录未找到: {conf_dir}")
         return
+    reload_needed = False
     for filename in os.listdir(conf_dir):
         if not filename.endswith('.conf'):
             continue
@@ -59,15 +60,23 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                 else:
                     print(f"[{filename}] ❌ 没有可用的IP替换 {ip}")
         if changed:
-            backup_path = file_path + '.bak'
-            with open(backup_path, 'w') as f:
-                f.write(conf)
             with open(file_path, 'w') as f:
                 f.write(new_conf)
-            print(f"[{filename}] ✅ 已更新并备份原配置到 {backup_path}")
+            print(f"[{filename}] ✅ 已更新配置文件")
+            reload_needed = True
         else:
             if matches:
                 print(f"[{filename}] 所有 proxy_pass IP 均可达，无需更改。")
+    if reload_needed:
+        print("检测到配置变更，自动执行 nginx -s reload ...")
+        try:
+            result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True)
+            if result.returncode == 0:
+                print("nginx -s reload 执行成功！")
+            else:
+                print(f"nginx -s reload 执行失败: {result.stderr}")
+        except Exception as e:
+            print(f"执行 nginx -s reload 失败: {e}")
 
 def print_ip_reachability(ip_list):
     all_unreachable = True
