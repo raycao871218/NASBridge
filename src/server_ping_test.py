@@ -3,6 +3,7 @@ import subprocess
 from dotenv import load_dotenv
 import re
 from notify.telegram import TelegramNotifier
+from notify.email import EmailNotifier
 
 # 加载.env文件
 load_dotenv()
@@ -87,15 +88,43 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
     # Telegram通知
     if switch_to_nas or switch_to_openwrt:
         try:
-            notifier = TelegramNotifier()
+            notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
             if switch_to_nas:
                 msg = "🚦 Nginx代理切换通知\n已切换到 🖥️ NAS"
-                print(f"Sending Telegram notification: {msg}")
-                notifier.send_message(msg)
+                for notify_type in notify_types:
+                    if notify_type == 'email':
+                        notifier = EmailNotifier(
+                            os.getenv('SMTP_SERVER'),
+                            int(os.getenv('SMTP_PORT', '587')),
+                            os.getenv('SMTP_USERNAME'),
+                            os.getenv('SMTP_PASSWORD'),
+                            os.getenv('EMAIL_SENDER'),
+                            os.getenv('EMAIL_RECEIVERS')
+                        )
+                        print(f"Sending email notification: {msg}")
+                        notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
+                    elif notify_type == 'telegram':
+                        notifier = TelegramNotifier()
+                        print(f"Sending Telegram notification: {msg}")
+                        notifier.send_message(msg)
             if switch_to_openwrt:
                 msg = "🚦 Nginx代理切换通知\n已切换到 📶 OPENWRT"
-                print(f"Sending Telegram notification: {msg}")
-                notifier.send_message(msg)
+                for notify_type in notify_types:
+                    if notify_type == 'email':
+                        notifier = EmailNotifier(
+                            os.getenv('SMTP_SERVER'),
+                            int(os.getenv('SMTP_PORT', '587')),
+                            os.getenv('SMTP_USERNAME'),
+                            os.getenv('SMTP_PASSWORD'),
+                            os.getenv('EMAIL_SENDER'),
+                            os.getenv('EMAIL_RECEIVERS')
+                        )
+                        print(f"Sending email notification: {msg}")
+                        notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
+                    elif notify_type == 'telegram':
+                        notifier = TelegramNotifier()
+                        print(f"Sending Telegram notification: {msg}")
+                        notifier.send_message(msg)
         except Exception as e:
             print(f"发送Telegram切换通知失败: {e}")
 
@@ -119,16 +148,35 @@ def main():
     print("检测候选IP可达性：")
     all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
     if all_unreachable:
-        print("所有候选IP均不可达，发送Telegram警告...")
+        print("所有候选IP均不可达，发送警告...")
         try:
-            notifier = TelegramNotifier()
-            success, err = notifier.send_message("所有候选IP均不可达，请检查网络！")
-            if success:
-                print("已通过Telegram发送警告！")
-            else:
-                print(f"Telegram发送失败: {err}")
+            notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
+            for notify_type in notify_types:
+                if notify_type == 'email':
+                    notifier = EmailNotifier(
+                        os.getenv('SMTP_SERVER'),
+                        int(os.getenv('SMTP_PORT', '587')),
+                        os.getenv('SMTP_USERNAME'),
+                        os.getenv('SMTP_PASSWORD'),
+                        os.getenv('EMAIL_SENDER'),
+                        os.getenv('EMAIL_RECEIVERS')
+                    )
+                    print("Sending email notification: 所有候选IP均不可达，请检查网络！")
+                    success = notifier.send_message("所有候选IP均不可达", "所有候选IP均不可达，请检查网络！", content_type="plain")
+                    if success:
+                        print("已通过Email发送警告！")
+                    else:
+                        print("Email发送失败")
+                elif notify_type == 'telegram':
+                    notifier = TelegramNotifier()
+                    print("Sending Telegram notification: 所有候选IP均不可达，请检查网络！")
+                    success, err = notifier.send_message("所有候选IP均不可达，请检查网络！")
+                    if success:
+                        print("已通过Telegram发送警告！")
+                    else:
+                        print(f"Telegram发送失败: {err}")
         except Exception as e:
-            print(f"调用Telegram通知失败: {e}")
+            print(f"调用通知失败: {e}")
         return
     print("\n检查 Nginx sites-available 目录下的配置...")
     check_and_replace_nginx_proxy_ips_in_dir(NGINX_CONFIG_PATH_AVAILABLE, CANDIDATE_IP_LIST)
