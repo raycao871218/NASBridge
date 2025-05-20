@@ -2,6 +2,7 @@ import os
 import subprocess
 from dotenv import load_dotenv
 import re
+from notify.telegram import TelegramNotifier
 
 # 加载.env文件
 load_dotenv()
@@ -66,8 +67,32 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
             if matches:
                 print(f"[{filename}] 所有 proxy_pass IP 均可达，无需更改。")
 
+def print_ip_reachability(ip_list):
+    all_unreachable = True
+    for ip in ip_list:
+        if ping_host(ip):
+            print(f"✅ {ip} 可达")
+            all_unreachable = False
+        else:
+            print(f"❌ {ip} 不可达")
+    return all_unreachable
+
 def main():
-    print("检查 Nginx sites-available 目录下的配置...")
+    print("检测候选IP可达性：")
+    all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
+    if all_unreachable:
+        print("所有候选IP均不可达，发送Telegram警告...")
+        try:
+            notifier = TelegramNotifier()
+            success, err = notifier.send_message("所有候选IP均不可达，请检查网络！")
+            if success:
+                print("已通过Telegram发送警告！")
+            else:
+                print(f"Telegram发送失败: {err}")
+        except Exception as e:
+            print(f"调用Telegram通知失败: {e}")
+        return
+    print("\n检查 Nginx sites-available 目录下的配置...")
     check_and_replace_nginx_proxy_ips_in_dir(NGINX_CONFIG_PATH_AVAILABLE, CANDIDATE_IP_LIST)
     # TODO: 可扩展 Caddy 配置的处理
 
