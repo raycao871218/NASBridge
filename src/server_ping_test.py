@@ -25,10 +25,12 @@ def ping_host(host):
         return False
 
 def get_first_reachable_ip_with_priority(nas_ip, openwrt_ip):
+    # 如果NAS的IP可用，就优先使用NAS
     if nas_ip and ping_host(nas_ip):
         return nas_ip
     if openwrt_ip and ping_host(openwrt_ip):
         return openwrt_ip
+    # 如果两个都不可用，返回None
     return None
 
 def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
