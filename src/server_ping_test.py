@@ -57,7 +57,8 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
         changed = False
         for m in matches:
             prefix, ip, port = m.group(1), m.group(2), m.group(3) or ''
-            if not ping_host(ip):
+            # 如果当前IP不可访问，或者当前是OPENWRT但NAS可用，则进行切换
+            if not ping_host(ip) or (ip == OPENWRT_IP and NAS_IP and ping_host(NAS_IP)):
                 new_ip = get_first_reachable_ip_with_priority(NAS_IP, OPENWRT_IP)
                 if new_ip and new_ip != ip:
                     print(f"[{filename}] 替换 proxy_pass: {ip} -> {new_ip}")
