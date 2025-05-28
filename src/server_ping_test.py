@@ -31,16 +31,17 @@ logging.basicConfig(
 
 # 用于记录连续通知的次数
 NOTIFY_COUNT_FILE = os.path.join(log_dir, 'notify_count.txt')
+RECOVERY_NOTIFY_COUNT_FILE = os.path.join(log_dir, 'recovery_notify_count.txt')
 
-def get_notify_count():
+def get_notify_count(file_path):
     try:
-        with open(NOTIFY_COUNT_FILE, 'r') as f:
+        with open(file_path, 'r') as f:
             return int(f.read().strip())
     except:
         return 0
 
-def update_notify_count(count):
-    with open(NOTIFY_COUNT_FILE, 'w') as f:
+def update_notify_count(file_path, count):
+    with open(file_path, 'w') as f:
         f.write(str(count))
 
 # 加载.env文件
@@ -68,18 +69,23 @@ def ping_host(host):
         if host in last_status and last_status[host] == False and current_status == True:
             # 从不可用恢复
             logger.info(f"服务已恢复: {host} 现在可用")
-            try:
-                notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
-                msg = f"🔄 服务恢复通知\n{host} 现在可用"
-                for notify_type in notify_types:
-                    if notify_type == 'email':
-                        notifier = EmailNotifier()
-                        notifier.send_message("🔄 服务恢复通知", msg, content_type="plain")
-                    elif notify_type == 'telegram':
-                        notifier = TelegramNotifier()
-                        notifier.send_message(msg)
-            except Exception as e:
-                logger.error(f"发送服务恢复通知失败: {e}")
+            notify_count = get_notify_count(RECOVERY_NOTIFY_COUNT_FILE)
+            if notify_count < 1:
+                try:
+                    notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
+                    msg = f"🔄 服务恢复通知\n{host} 现在可用"
+                    for notify_type in notify_types:
+                        if notify_type == 'email':
+                            notifier = EmailNotifier()
+                            notifier.send_message("🔄 服务恢复通知", msg, content_type="plain")
+                        elif notify_type == 'telegram':
+                            notifier = TelegramNotifier()
+                            notifier.send_message(msg)
+                    update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, notify_count + 1)
+                except Exception as e:
+                    logger.error(f"发送服务恢复通知失败: {e}")
+            else:
+                logger.info(f"已发送过恢复通知，本次跳过")
             
         last_status[host] = current_status
         return current_status
@@ -177,12 +183,12 @@ def main():
     all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
     if all_unreachable:
         logging.warning("所有候选IP均不可达")
-        notify_count = get_notify_count()
+        notify_count = get_notify_count(NOTIFY_COUNT_FILE)
         
         # 如果连续通知次数已达到2次，只记录日志不发送通知
         if notify_count >= 2:
             logging.info(f"已连续通知{notify_count}次，本次只记录日志不发送通知")
-            update_notify_count(notify_count + 1)
+            update_notify_count(NOTIFY_COUNT_FILE, notify_count + 1)
             return
             
         logging.info("发送不可达警告通知...")
@@ -206,13 +212,14 @@ def main():
                     else:
                         logging.error(f"Telegram发送失败: {err}")
             # 更新通知计数
-            update_notify_count(notify_count + 1)
+            update_notify_count(NOTIFY_COUNT_FILE, notify_count + 1)
         except Exception as e:
             logging.error(f"调用通知失败: {e}")
         return
     else:
         # 如果IP可达，重置通知计数
-        update_notify_count(0)
+        update_notify_count(NOTIFY_COUNT_FILE, 0)
+        update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, 0)
     logging.info("\n检查 Nginx sites-available 目录下的配置...")
     check_and_replace_nginx_proxy_ips_in_dir(NGINX_CONFIG_PATH_AVAILABLE, CANDIDATE_IP_LIST)
     # TODO: 可扩展 Caddy 配置的处理
