@@ -3,7 +3,7 @@ import subprocess
 from dotenv import load_dotenv
 import re
 import logging
-from notify.telegram import TelegramNotifier
+
 from notify.email import EmailNotifier
 
 # 初始化logger
@@ -70,8 +70,7 @@ def ping_host(host):
         # 检查状态变化
         if host in last_status and last_status[host] == False and current_status == True:
             # 从不可用恢复
-            notifier = TelegramNotifier()
-            notifier.send(f"服务已恢复: {host} 现在可用")
+            logger.info(f"服务已恢复: {host} 现在可用")
             
         last_status[host] = current_status
         return current_status
