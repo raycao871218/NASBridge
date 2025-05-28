@@ -3,7 +3,7 @@ import subprocess
 from dotenv import load_dotenv
 import re
 import logging
-
+from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 
 # 初始化logger
@@ -61,10 +61,7 @@ def ping_host(host):
         result = subprocess.run([
             'ping', '-c', '3', '-W', '5', host  # 改为尝试3次，超时5秒
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
-        # 记录详细ping结果
-        logger.debug(f"Ping {host} 结果: 返回码={result.returncode}, 输出={result.stdout}, 错误={result.stderr}")
-        
+
         current_status = result.returncode == 0
         
         # 检查状态变化
