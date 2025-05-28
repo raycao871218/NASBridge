@@ -2,8 +2,33 @@ import os
 import subprocess
 from dotenv import load_dotenv
 import re
+import logging
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('server_ping_test.log'),
+        logging.StreamHandler()
+    ]
+)
+
+# 用于记录连续通知的次数
+NOTIFY_COUNT_FILE = 'notify_count.txt'
+
+def get_notify_count():
+    try:
+        with open(NOTIFY_COUNT_FILE, 'r') as f:
+            return int(f.read().strip())
+    except:
+        return 0
+
+def update_notify_count(count):
+    with open(NOTIFY_COUNT_FILE, 'w') as f:
+        f.write(str(count))
 
 # 加载.env文件
 load_dotenv()
@@ -35,7 +60,7 @@ def get_first_reachable_ip_with_priority(nas_ip, openwrt_ip):
 
 def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
     if not conf_dir or not os.path.isdir(conf_dir):
-        print(f"❌ Nginx 配置目录未找到: {conf_dir}")
+        logging.error(f"❌ Nginx 配置目录未找到: {conf_dir}")
         return
     reload_needed = False
     switch_to_nas = False
@@ -61,7 +86,7 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
             if not ping_host(ip) or (ip == OPENWRT_IP and NAS_IP and ping_host(NAS_IP)):
                 new_ip = get_first_reachable_ip_with_priority(NAS_IP, OPENWRT_IP)
                 if new_ip and new_ip != ip:
-                    print(f"[{filename}] 替换 proxy_pass: {ip} -> {new_ip}")
+                    logging.info(f"[{filename}] 替换 proxy_pass: {ip} -> {new_ip}")
                     new_conf = new_conf.replace(f"{prefix}{ip}{port}", f"{prefix}{new_ip}{port}")
                     changed = True
                     if new_ip == NAS_IP:
@@ -69,25 +94,25 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                     elif new_ip == OPENWRT_IP:
                         switch_to_openwrt = True
                 else:
-                    print(f"[{filename}] ❌ 没有可用的IP替换 {ip}")
+                    logging.warning(f"[{filename}] ❌ 没有可用的IP替换 {ip}")
         if changed:
             with open(file_path, 'w') as f:
                 f.write(new_conf)
-            print(f"[{filename}] ✅ 已更新配置文件")
+            logging.info(f"[{filename}] ✅ 已更新配置文件")
             reload_needed = True
         else:
             if matches:
-                print(f"[{filename}] 所有 proxy_pass IP 均可达，无需更改。")
+                logging.info(f"[{filename}] 所有 proxy_pass IP 均可达，无需更改。")
     if reload_needed:
-        print("检测到配置变更，自动执行 nginx -s reload ...")
+        logging.info("检测到配置变更，自动执行 nginx -s reload ...")
         try:
             result = subprocess.run(['nginx', '-s', 'reload'], capture_output=True, text=True)
             if result.returncode == 0:
-                print("nginx -s reload 执行成功！")
+                logging.info("nginx -s reload 执行成功！")
             else:
-                print(f"nginx -s reload 执行失败: {result.stderr}")
+                logging.error(f"nginx -s reload 执行失败: {result.stderr}")
         except Exception as e:
-            print(f"执行 nginx -s reload 失败: {e}")
+            logging.error(f"执行 nginx -s reload 失败: {e}")
     # Telegram通知
     if switch_to_nas or switch_to_openwrt:
         try:
@@ -97,25 +122,25 @@ def check_and_replace_nginx_proxy_ips_in_dir(conf_dir, candidate_ips):
                 for notify_type in notify_types:
                     if notify_type == 'email':
                         notifier = EmailNotifier()
-                        print(f"Sending email notification: {msg}")
+                        logging.info(f"Sending email notification: {msg}")
                         notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
                     elif notify_type == 'telegram':
                         notifier = TelegramNotifier()
-                        print(f"Sending Telegram notification: {msg}")
+                        logging.info(f"Sending Telegram notification: {msg}")
                         notifier.send_message(msg)
             if switch_to_openwrt:
                 msg = "🚦 Nginx代理切换通知\n已切换到 📶 OPENWRT"
                 for notify_type in notify_types:
                     if notify_type == 'email':
                         notifier = EmailNotifier()
-                        print(f"Sending email notification: {msg}")
+                        logging.info(f"Sending email notification: {msg}")
                         notifier.send_message("🚦 Nginx代理切换通知", msg, content_type="plain")
                     elif notify_type == 'telegram':
                         notifier = TelegramNotifier()
-                        print(f"Sending Telegram notification: {msg}")
+                        logging.info(f"Sending Telegram notification: {msg}")
                         notifier.send_message(msg)
         except Exception as e:
-            print(f"发送Telegram切换通知失败: {e}")
+            logging.error(f"发送Telegram切换通知失败: {e}")
 
 def print_ip_reachability(ip_list):
     name_map = {}
@@ -127,40 +152,54 @@ def print_ip_reachability(ip_list):
     for ip in ip_list:
         name = name_map.get(ip, ip)
         if ping_host(ip):
-            print(f"✅ {name}（{ip}）可达")
+            logging.info(f"✅ {name}（{ip}）可达")
             all_unreachable = False
         else:
-            print(f"❌ {name}（{ip}）不可达")
+            logging.warning(f"❌ {name}（{ip}）不可达")
     return all_unreachable
 
 def main():
-    print("检测候选IP可达性：")
+    logging.info("检测候选IP可达性：")
     all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
     if all_unreachable:
-        print("所有候选IP均不可达，发送警告...")
+        logging.warning("所有候选IP均不可达")
+        notify_count = get_notify_count()
+        
+        # 如果连续通知次数已达到2次，只记录日志不发送通知
+        if notify_count >= 2:
+            logging.info(f"已连续通知{notify_count}次，本次只记录日志不发送通知")
+            update_notify_count(notify_count + 1)
+            return
+            
+        logging.info("发送不可达警告通知...")
         try:
             notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
             for notify_type in notify_types:
                 if notify_type == 'email':
                     notifier = EmailNotifier()
-                    print("Sending email notification: 所有候选IP均不可达，请检查网络！")
+                    logging.info("Sending email notification: 所有候选IP均不可达，请检查网络！")
                     success = notifier.send_message("所有候选IP均不可达", "所有候选IP均不可达，请检查网络！", content_type="plain")
                     if success:
-                        print("已通过Email发送警告！")
+                        logging.info("已通过Email发送警告！")
                     else:
-                        print("Email发送失败")
+                        logging.error("Email发送失败")
                 elif notify_type == 'telegram':
                     notifier = TelegramNotifier()
-                    print("Sending Telegram notification: 所有候选IP均不可达，请检查网络！")
+                    logging.info("Sending Telegram notification: 所有候选IP均不可达，请检查网络！")
                     success, err = notifier.send_message("所有候选IP均不可达，请检查网络！")
                     if success:
-                        print("已通过Telegram发送警告！")
+                        logging.info("已通过Telegram发送警告！")
                     else:
-                        print(f"Telegram发送失败: {err}")
+                        logging.error(f"Telegram发送失败: {err}")
+            # 更新通知计数
+            update_notify_count(notify_count + 1)
         except Exception as e:
-            print(f"调用通知失败: {e}")
+            logging.error(f"调用通知失败: {e}")
         return
-    print("\n检查 Nginx sites-available 目录下的配置...")
+    else:
+        # 如果IP可达，重置通知计数
+        update_notify_count(0)
+    logging.info("\n检查 Nginx sites-available 目录下的配置...")
     check_and_replace_nginx_proxy_ips_in_dir(NGINX_CONFIG_PATH_AVAILABLE, CANDIDATE_IP_LIST)
     # TODO: 可扩展 Caddy 配置的处理
 
