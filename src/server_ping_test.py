@@ -7,17 +7,26 @@ from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 
 # 配置日志
+import os
+
+# 获取当前文件所在目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(current_dir, '../log')
+
+# 确保日志目录存在
+os.makedirs(log_dir, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('server_ping_test.log'),
+        logging.FileHandler(os.path.join(log_dir, 'server_ping_test.log')),
         logging.StreamHandler()
     ]
 )
 
 # 用于记录连续通知的次数
-NOTIFY_COUNT_FILE = 'notify_count.txt'
+NOTIFY_COUNT_FILE = os.path.join(log_dir, 'notify_count.txt')
 
 def get_notify_count():
     try:
@@ -39,13 +48,25 @@ NGINX_CONFIG_PATH_AVAILABLE = os.getenv('NGINX_CONFIG_PATH_AVAILABLE')
 
 CANDIDATE_IP_LIST = [ip for ip in [NAS_IP, OPENWRT_IP] if ip]
 
+# 记录上次状态
+last_status = {ip: False for ip in CANDIDATE_IP_LIST}
+
 def ping_host(host):
     try:
         # -c 1 表示只ping一次，-W 2 表示超时时间2秒
         result = subprocess.run([
             'ping', '-c', '1', '-W', '2', host
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return result.returncode == 0
+        current_status = result.returncode == 0
+        
+        # 检查状态变化
+        if host in last_status and last_status[host] == False and current_status == True:
+            # 从不可用恢复
+            notifier = TelegramNotifier()
+            notifier.send(f"服务已恢复: {host} 现在可用")
+            
+        last_status[host] = current_status
+        return current_status
     except Exception:
         return False
 
