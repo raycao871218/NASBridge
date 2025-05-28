@@ -55,7 +55,7 @@ def ping_host(host):
     try:
         # -c 1 表示只ping一次，-W 2 表示超时时间2秒
         result = subprocess.run([
-            'ping', '-c', '1', '-W', '2', host
+            'ping', '-c', '3', '-W', '5', host  # 改为尝试3次，超时5秒
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         current_status = result.returncode == 0
         
