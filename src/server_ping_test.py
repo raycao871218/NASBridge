@@ -7,17 +7,26 @@ from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 
 # 配置日志
+import os
+
+# 获取当前文件所在目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(current_dir, '../log')
+
+# 确保日志目录存在
+os.makedirs(log_dir, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('server_ping_test.log'),
+        logging.FileHandler(os.path.join(log_dir, 'server_ping_test.log')),
         logging.StreamHandler()
     ]
 )
 
 # 用于记录连续通知的次数
-NOTIFY_COUNT_FILE = 'notify_count.txt'
+NOTIFY_COUNT_FILE = os.path.join(log_dir, 'notify_count.txt')
 
 def get_notify_count():
     try:
