@@ -57,6 +57,10 @@ def ping_host(host):
         result = subprocess.run([
             'ping', '-c', '3', '-W', '5', host  # 改为尝试3次，超时5秒
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        # 记录详细ping结果
+        logger.debug(f"Ping {host} 结果: 返回码={result.returncode}, 输出={result.stdout}, 错误={result.stderr}")
+        
         current_status = result.returncode == 0
         
         # 检查状态变化
@@ -67,7 +71,8 @@ def ping_host(host):
             
         last_status[host] = current_status
         return current_status
-    except Exception:
+    except Exception as e:
+        logger.error(f"执行ping命令时发生异常: {str(e)}", exc_info=True)
         return False
 
 def get_first_reachable_ip_with_priority(nas_ip, openwrt_ip):
