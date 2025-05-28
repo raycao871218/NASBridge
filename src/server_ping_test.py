@@ -6,6 +6,10 @@ import logging
 from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 
+# 初始化logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 # 配置日志
 import os
 
