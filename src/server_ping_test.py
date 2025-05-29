@@ -181,6 +181,11 @@ def print_ip_reachability(ip_list):
 def main():
     logging.info("检测候选IP可达性：")
     all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
+    
+    # 如果所有IP都可达，重置恢复通知计数器，为下次不可达后的恢复做准备
+    if not all_unreachable:
+        update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, 0)
+    
     if all_unreachable:
         logging.warning("所有候选IP均不可达")
         notify_count = get_notify_count(NOTIFY_COUNT_FILE)
