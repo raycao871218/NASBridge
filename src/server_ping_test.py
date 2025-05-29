@@ -29,9 +29,9 @@ logging.basicConfig(
     ]
 )
 
-# 用于记录连续通知的次数
+# 用于记录连续通知的次数和上次运行状态
 NOTIFY_COUNT_FILE = os.path.join(log_dir, 'notify_count.txt')
-RECOVERY_NOTIFY_COUNT_FILE = os.path.join(log_dir, 'recovery_notify_count.txt')
+LAST_RUN_STATUS_FILE = os.path.join(log_dir, 'last_run_status.txt')
 
 def get_notify_count(file_path):
     try:
@@ -40,9 +40,16 @@ def get_notify_count(file_path):
     except:
         return 0
 
-def update_notify_count(file_path, count):
-    with open(file_path, 'w') as f:
-        f.write(str(count))
+def get_last_run_status():
+    try:
+        with open(LAST_RUN_STATUS_FILE, 'r') as f:
+            return f.read().strip() == 'True'
+    except:
+        return True  # 如果文件不存在，假设上次是可访问的
+
+def save_current_status(is_reachable):
+    with open(LAST_RUN_STATUS_FILE, 'w') as f:
+        f.write(str(is_reachable))
 
 # 加载.env文件
 load_dotenv()
@@ -69,23 +76,6 @@ def ping_host(host):
         if host in last_status and last_status[host] == False and current_status == True:
             # 从不可用恢复
             logger.info(f"服务已恢复: {host} 现在可用")
-            notify_count = get_notify_count(RECOVERY_NOTIFY_COUNT_FILE)
-            if notify_count < 1:
-                try:
-                    notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
-                    msg = f"🔄 服务恢复通知\n{host} 现在可用"
-                    for notify_type in notify_types:
-                        if notify_type == 'email':
-                            notifier = EmailNotifier()
-                            notifier.send_message("🔄 服务恢复通知", msg, content_type="plain")
-                        elif notify_type == 'telegram':
-                            notifier = TelegramNotifier()
-                            notifier.send_message(msg)
-                    update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, notify_count + 1)
-                except Exception as e:
-                    logger.error(f"发送服务恢复通知失败: {e}")
-            else:
-                logger.info(f"已发送过恢复通知，本次跳过")
             
         last_status[host] = current_status
         return current_status
@@ -181,10 +171,25 @@ def print_ip_reachability(ip_list):
 def main():
     logging.info("检测候选IP可达性：")
     all_unreachable = print_ip_reachability(CANDIDATE_IP_LIST)
+    last_run_unreachable = not get_last_run_status()
     
-    # 如果所有IP都可达，重置恢复通知计数器，为下次不可达后的恢复做准备
-    if not all_unreachable:
-        update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, 0)
+    # 保存当前状态供下次运行使用
+    save_current_status(not all_unreachable)
+    
+    # 如果上次全部不可达，这次有可达的，发送恢复通知
+    if last_run_unreachable and not all_unreachable:
+        try:
+            notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
+            msg = f"🔄 服务恢复通知\n服务器现在可以访问"
+            for notify_type in notify_types:
+                if notify_type == 'email':
+                    notifier = EmailNotifier()
+                    notifier.send_message("🔄 服务恢复通知", msg, content_type="plain")
+                elif notify_type == 'telegram':
+                    notifier = TelegramNotifier()
+                    notifier.send_message(msg)
+        except Exception as e:
+            logger.error(f"发送服务恢复通知失败: {e}")
     
     if all_unreachable:
         logging.warning("所有候选IP均不可达")
@@ -193,7 +198,8 @@ def main():
         # 如果连续通知次数已达到2次，只记录日志不发送通知
         if notify_count >= 2:
             logging.info(f"已连续通知{notify_count}次，本次只记录日志不发送通知")
-            update_notify_count(NOTIFY_COUNT_FILE, notify_count + 1)
+            with open(NOTIFY_COUNT_FILE, 'w') as f:
+                f.write(str(notify_count + 1))
             return
             
         logging.info("发送不可达警告通知...")
@@ -217,7 +223,8 @@ def main():
                     else:
                         logging.error(f"Telegram发送失败: {err}")
             # 更新通知计数
-            update_notify_count(NOTIFY_COUNT_FILE, notify_count + 1)
+            with open(NOTIFY_COUNT_FILE, 'w') as f:
+                f.write(str(notify_count + 1))
         except Exception as e:
             logging.error(f"调用通知失败: {e}")
         return
