@@ -230,8 +230,8 @@ def main():
         return
     else:
         # 如果IP可达，重置通知计数
-        update_notify_count(NOTIFY_COUNT_FILE, 0)
-        update_notify_count(RECOVERY_NOTIFY_COUNT_FILE, 0)
+        with open(NOTIFY_COUNT_FILE, 'w') as f:
+            f.write('0')
     logging.info("\n检查 Nginx sites-available 目录下的配置...")
     check_and_replace_nginx_proxy_ips_in_dir(NGINX_CONFIG_PATH_AVAILABLE, CANDIDATE_IP_LIST)
     # TODO: 可扩展 Caddy 配置的处理
