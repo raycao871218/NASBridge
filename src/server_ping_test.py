@@ -179,8 +179,16 @@ def main():
     # 如果上次全部不可达，这次有可达的，发送恢复通知
     if last_run_unreachable and not all_unreachable:
         try:
+            # 获取可访问的设备名称列表
+            available_devices = []
+            name_map = {NAS_IP: 'NAS', OPENWRT_IP: 'OPENWRT'}
+            for ip in CANDIDATE_IP_LIST:
+                if ping_host(ip):
+                    name = name_map.get(ip, ip)
+                    available_devices.append(name)
+            
             notify_types = [t.strip().lower() for t in os.getenv('NOTIFY_TYPE', 'telegram').split(',')]
-            msg = f"🔄 服务恢复通知\n服务器现在可以访问"
+            msg = f"🔄 服务恢复通知\n以下设备现在可以访问：\n" + "\n".join([f"✅ {device}" for device in available_devices])
             for notify_type in notify_types:
                 if notify_type == 'email':
                     notifier = EmailNotifier()
