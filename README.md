@@ -17,6 +17,9 @@
 ### 路由器自动更新
 - **添加host支持github**: 脚本定期获取[github520](https://github.com/521xueweihan/GitHub520)的数据源添加至hosts文件
 
+### 📖 配置文档
+- **服务器ZeroTier 配置指南**：详细的服务器端 ZeroTier 部署和故障排除说明 → [查看文档](zerotier.md)
+
 ### 📊 监控与测试
 - **网络监控**：
   - NAS 网络连通性检测
