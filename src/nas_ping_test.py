@@ -1,5 +1,6 @@
 import yaml
 import subprocess
+import requests
 from datetime import datetime
 from rich.console import Console
 from rich.table import Table
@@ -12,8 +13,7 @@ from telegram import TelegramNotifier
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../domains_config.yaml")
 CONFIG_PATH = os.path.abspath(CONFIG_PATH)
-PING_COUNT = 4
-TIMEOUT_SEC = 2
+REQUEST_TIMEOUT = 5  # HTTP请求超时时间（秒）
 
 console = Console()
 
@@ -22,11 +22,59 @@ def load_targets(config_path):
         data = yaml.safe_load(f)
     return data.get("zt_ip", [])
 
-def ping(ip):
+def check_connectivity(target):
+    """
+    检查网络连通性，优先使用HTTP请求，如果目标是IP地址则使用ping
+    """
+    ip = str(target["ip"])
+    name = target["name"]
+    
+    # 判断是否为IP地址
+    is_ip = re.match(r'^\d+\.\d+\.\d+\.\d+$', ip)
+    
+    if is_ip:
+        # 如果是IP地址，使用ping检测
+        return ping_check(ip)
+    else:
+        # 判断是否为OpenAI/GPT相关链接
+        if is_openai_domain(name, ip):
+            return openai_check(ip)
+        else:
+            # 如果是普通域名，使用HTTP请求检测
+            return http_check(ip)
+
+def http_check(domain):
+    """
+    使用HTTP请求检测网络连通性
+    """
+    try:
+        # 先尝试HTTPS
+        url = f"https://{domain}"
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        if response.status_code == 200:
+            return True
+    except Exception:
+        pass
+    
+    try:
+        # 如果HTTPS失败，尝试HTTP
+        url = f"http://{domain}"
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        if response.status_code == 200:
+            return True
+    except Exception:
+        pass
+    
+    return False
+
+def ping_check(ip):
+    """
+    使用ping检测网络连通性（用于IP地址）
+    """
     try:
         # -c: count, -W: timeout (Linux), -t: timeout (macOS)
         result = subprocess.run(
-            ["ping", "-c", str(PING_COUNT), "-W", str(TIMEOUT_SEC), ip],
+            ["ping", "-c", "2", "-W", "2", ip],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -66,6 +114,77 @@ def get_type_icon(t):
     # 其它外网
     return "🌍", "wan"
 
+def is_openai_domain(name, domain_or_url):
+    """
+    判断是否为OpenAI/GPT相关域名或URL
+    """
+    name_lower = name.lower()
+    domain_lower = domain_or_url.lower()
+    
+    openai_keywords = ['gpt', 'openai', 'chatgpt']
+    openai_domains = ['api.openai.com', 'openai.com', 'chat.openai.com']
+    
+    # 检查name中是否包含关键词
+    for keyword in openai_keywords:
+        if keyword in name_lower:
+            return True
+    
+    # 检查domain是否为OpenAI相关域名或URL
+    for oa_domain in openai_domains:
+        if oa_domain in domain_lower:
+            return True
+    
+    return False
+
+def openai_check(domain_or_url):
+    """
+    专门用于检测OpenAI/GPT相关服务的连通性
+    对于OpenAI API，401错误表示连通性正常（只是缺少认证）
+    支持传入完整URL或域名
+    """
+    try:
+        # 处理完整URL的情况
+        if domain_or_url.startswith('http://') or domain_or_url.startswith('https://'):
+            url = domain_or_url
+        else:
+            # 如果是OpenAI API域名，直接请求models端点
+            if 'api.openai.com' in domain_or_url.lower():
+                url = f"https://{domain_or_url}/v1/models"
+            else:
+                # 其他OpenAI相关域名使用HTTPS
+                url = f"https://{domain_or_url}"
+        
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        
+        # 对于OpenAI API，401表示连通性正常（认证失败，但网络可达）
+        if response.status_code in [200, 401]:
+            return True
+        # 403也可能表示连通性正常，但被限制访问
+        elif response.status_code == 403:
+            return True
+            
+    except requests.exceptions.ConnectTimeout:
+        return False
+    except requests.exceptions.ConnectionError:
+        return False
+    except Exception:
+        pass
+    
+    # 如果是完整URL且失败了，不再尝试其他方式
+    if domain_or_url.startswith('http://') or domain_or_url.startswith('https://'):
+        return False
+    
+    try:
+        # 如果HTTPS失败，尝试HTTP（虽然OpenAI通常不支持）
+        url = f"http://{domain_or_url}"
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        if response.status_code in [200, 401, 403]:
+            return True
+    except Exception:
+        pass
+    
+    return False
+
 def main():
     targets = load_targets(CONFIG_PATH)
     if not targets:
@@ -73,12 +192,19 @@ def main():
         return
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    title_line = f"[bold magenta]{'='*10} NAS连通性测试 {'='*10}[/bold magenta]"
+    title_line = f"[bold magenta]{'='*10} NAS网络连通性测试 {'='*10}[/bold magenta]"
     console.print(title_line)
     console.print(f"[bold]测试时间:[/bold] [cyan]{now}[/cyan]")
     console.print(f"[bold]测试目标 ({len(targets)}):[/bold]")
     for t in targets:
-        console.print(f"  [yellow]{t['name']}[/yellow]: [white]{t['ip']}[/white]")
+        ip_str = str(t['ip'])
+        if re.match(r'^\d+\.\d+\.\d+\.\d+$', ip_str):
+            test_method = "PING"
+        elif is_openai_domain(t['name'], ip_str):
+            test_method = "OPENAI"
+        else:
+            test_method = "HTTP"
+        console.print(f"  [yellow]{t['name']}[/yellow]: [white]{t['ip']}[/white] [dim]({test_method})[/dim]")
     console.print("[bold magenta]" + "-"*40 + "[/bold magenta]")
 
     table = Table(show_header=True, header_style="bold magenta", box=box.SIMPLE_HEAVY)
@@ -88,7 +214,7 @@ def main():
 
     failed = []
     for t in targets:
-        ok = ping(str(t["ip"]))
+        ok = check_connectivity(t)
         if ok:
             table.add_row(f"[yellow]{t['name']}[/yellow]", f"[white]{t['ip']}[/white]", "[green]✅[/green]")
         else:
@@ -133,7 +259,7 @@ def main():
 
     # 构建报告
     report_lines = []
-    report_lines.append("<b>========== NAS连通性测试 ==========</b>")
+    report_lines.append("<b>========== NAS网络连通性测试 ==========</b>")
     report_lines.append(f"测试时间: <code>{now}</code>")
     report_lines.append(f"测试目标 ({len(targets)}):\n")
     report_lines.append("<pre>" + "\n".join(table_lines) + "</pre>")
@@ -144,7 +270,14 @@ def main():
         report_lines.append("❌ 以下目标连接失败：")
         for t in failed:
             icon = icon_map[t['ip']]
-            report_lines.append(f"  - {icon} {t['name']}: {t['ip']}")
+            ip_str = str(t['ip'])
+            if re.match(r'^\d+\.\d+\.\d+\.\d+$', ip_str):
+                test_method = "PING"
+            elif is_openai_domain(t['name'], ip_str):
+                test_method = "OPENAI"
+            else:
+                test_method = "HTTP"
+            report_lines.append(f"  - {icon} {t['name']}: {t['ip']} ({test_method})")
     else:
         report_lines.append("✅ 所有目标连接测试通过")
     report = "\n".join(report_lines)
