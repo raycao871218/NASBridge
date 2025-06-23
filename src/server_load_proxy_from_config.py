@@ -50,6 +50,16 @@ def read_services_config_from_yaml(yaml_path):
                 target = svc.get('target')
                 # 解析target为实际IP
                 proxy_ip = zt_ip_map.get(target, target)
+                
+                # 如果proxy_ip是环境变量名（如NAS_IP），则从环境变量中获取值
+                if proxy_ip and proxy_ip.endswith('_IP') and proxy_ip.isupper():
+                    env_value = os.getenv(proxy_ip)
+                    if env_value:
+                        proxy_ip = env_value
+                    else:
+                        print(f"⚠️ 环境变量未设置: {proxy_ip}")
+                        continue
+                        
                 if not proxy_ip:
                     print(f"⚠️ 代理目标地址未配置: {target}")
                     continue
