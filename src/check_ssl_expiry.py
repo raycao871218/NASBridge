@@ -8,6 +8,8 @@ from notify.telegram import TelegramNotifier
 from notify.email import EmailNotifier
 from notify.ics_util import create_ics_file_multi
 import yaml  # 新增：用于解析YAML配置文件
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 def parse_host_port(url: str) -> Tuple[str, int]:
     """解析URL，分离主机名和端口号
@@ -53,7 +55,44 @@ def check_ssl_expiry(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
                 return is_valid, expire_date.strftime('%Y-%m-%d %H:%M:%S GMT'), None
                 
     except ssl.SSLCertVerificationError as e:
-        return False, None, f"证书验证失败: {str(e)}"
+        # 如果是证书链验证失败，尝试获取证书信息但不验证证书链
+        if "unable to get local issuer certificate" in str(e):
+            try:
+                hostname, port = parse_host_port(url)
+                context = ssl.create_default_context()
+                # 暂时禁用证书验证来获取证书信息
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                
+                with socket.create_connection((hostname, port)) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        # 获取二进制证书数据
+                        cert_der = ssock.getpeercert(binary_form=True)
+                        
+                        if cert_der:
+                            # 使用cryptography库解析证书
+                            cert = x509.load_der_x509_certificate(cert_der, default_backend())
+                            
+                            # 获取证书过期时间
+                            try:
+                                # 使用新的UTC方法，如果不可用则使用旧方法
+                                expire_date = cert.not_valid_after_utc
+                            except AttributeError:
+                                expire_date = cert.not_valid_after.replace(tzinfo=timezone.utc)
+                            current_date = datetime.now(timezone.utc)
+                            
+                            # 检查是否过期
+                            is_valid = expire_date > current_date
+                            
+                            # 返回证书信息，但标记为证书链验证失败
+                            return is_valid, expire_date.strftime('%Y-%m-%d %H:%M:%S GMT'), f"证书链验证失败（证书本身有效）: {str(e)}"
+                        else:
+                            return False, None, f"证书验证失败且无法获取证书数据: {str(e)}"
+                        
+            except Exception as inner_e:
+                return False, None, f"证书验证失败且无法获取证书信息: {str(inner_e)}"
+        else:
+            return False, None, f"证书验证失败: {str(e)}"
     except socket.gaierror as e:
         return False, None, f"DNS解析错误: {str(e)}"
     except Exception as e:
@@ -173,14 +212,48 @@ if __name__ == '__main__':
         
         # 收集需要发送警告的消息
         if error:
-            if "证书验证失败" in error:
+            if "证书链验证失败（证书本身有效）" in error:
+                # 证书链验证失败但证书本身有效，检查过期时间
+                if expire_date:
+                    expire_time = datetime.strptime(expire_date, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=timezone.utc)
+                    days_remaining = (expire_time - datetime.now(timezone.utc)).days
+                    
+                    remaining_time = format_time_remaining(expire_date)
+                    icon = "⚠️"
+                    status = "证书链验证失败（证书本身有效）"
+                    
+                    # 如果有HTTPS则跳过，没有增加HTTPS
+                    if "https" in url:
+                        url_format = url
+                    else:
+                        url_format = f"https://{url}"
+                    
+                    # 格式化消息
+                    message = f"{icon} {url_format} \n    状态：{status}\n    过期时间：{expire_date}\n    剩余时间：{remaining_time} \n    错误：{error}"
+                    print(message)
+                    
+                    # 如果剩余天数小于10天，也加入警告
+                    if days_remaining < 10:
+                        warning_messages.append(message)
+                        warning_events.append((url, expire_date))
+                    else:
+                        print(f"注意：{url} 证书链验证失败但证书本身有效，还有 {remaining_time} 过期")
+                else:
+                    message = f"⚠️ {url}: 证书链验证失败 - {error}"
+                    print(message)
+                    warning_messages.append(message)
+            elif "证书验证失败" in error:
                 message = f"❌ {url}: 证书无效 - {error}"
+                print(message)
+                warning_messages.append(message)
             elif "DNS解析错误" in error:
                 message = f"❌ {url}: 无法连接 - 域名解析失败"
+                print(message)
+                warning_messages.append(message)
             else:
                 message = f"❌ {url}: 检查失败 - {error}"
-            print(message)
-            warning_messages.append(message)
+                print(message)
+                warning_messages.append(message)
         elif expire_date:
             # 解析过期时间
             expire_time = datetime.strptime(expire_date, '%Y-%m-%d %H:%M:%S GMT').replace(tzinfo=timezone.utc)
