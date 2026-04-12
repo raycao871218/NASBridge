@@ -17,6 +17,8 @@
 - `NAS_CERT_SITE_NAME`: cert site dir name on NAS
 - `SERVER_CERT_DIR`: cert base dir on server
 - `LOCAL_CERT_STAGING_DIR`: local temp staging on OpenClaw
+- `CERT_ISSUE_COOLDOWN_DAYS`: skip re-issuing cert if last successful issue is within this many days (default 15)
+- `NAS_CERT_ISSUE_MARKER`: marker file on NAS storing last successful issue unix timestamp
 
 ## NAS Cert Issue
 

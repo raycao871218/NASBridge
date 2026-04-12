@@ -92,6 +92,7 @@ SERVER_SSH_USER="${SERVER_SSH_USER:-${SSH_USER:-}}"
 NAS_SSH_PORT="${NAS_SSH_PORT:-22}"
 SERVER_SSH_PORT="${SERVER_SSH_PORT:-22}"
 LOCAL_CERT_STAGING_DIR="${LOCAL_CERT_STAGING_DIR:-$PROJECT_ROOT/tmp/certs}"
+CERT_ISSUE_COOLDOWN_DAYS="${CERT_ISSUE_COOLDOWN_DAYS:-15}"
 
 require_var NAS_SSH_HOST
 require_var NAS_SSH_USER
@@ -111,10 +112,34 @@ echo "INFO: domain prefix: $DOMAIN_PREFIX"
 echo "INFO: local staging: $LOCAL_CERT_DIR"
 
 if ! $SKIP_NAS_UPDATE; then
+    if ! [[ "$CERT_ISSUE_COOLDOWN_DAYS" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CERT_ISSUE_COOLDOWN_DAYS must be an integer" >&2
+        exit 1
+    fi
+
+    if [[ -z "${NAS_CERT_ISSUE_MARKER:-}" ]]; then
+        NAS_CERT_ISSUE_MARKER="${NAS_PROJECT_PATH%/}/log/last_cert_issue_at"
+    fi
+
     printf -v NAS_PROJECT_PATH_Q '%q' "$NAS_PROJECT_PATH"
+    printf -v NAS_CERT_ISSUE_MARKER_Q '%q' "$NAS_CERT_ISSUE_MARKER"
     NAS_UPDATE_CMD="cd ${NAS_PROJECT_PATH_Q} && bash src/nas_cert_update.sh"
-    echo "1/4 Run cert update on NAS"
-    run_cmd ssh -p "$NAS_SSH_PORT" "${NAS_SSH_USER}@${NAS_SSH_HOST}" "$NAS_UPDATE_CMD"
+    NAS_COOLDOWN_CHECK_CMD="bash -lc 'marker=${NAS_CERT_ISSUE_MARKER_Q}; cooldown_days=${CERT_ISSUE_COOLDOWN_DAYS}; now=\$(date +%s); if [[ -f \"\$marker\" ]]; then last=\$(cat \"\$marker\" 2>/dev/null || true); if [[ \"\$last\" =~ ^[0-9]+$ ]]; then min_gap=\$((cooldown_days*86400)); elapsed=\$((now-last)); if (( elapsed < min_gap )); then echo SKIP; exit 0; fi; fi; fi; echo RUN'"
+
+    if $DRY_RUN; then
+        echo "1/4 Dry-run: would check NAS issue cooldown (${CERT_ISSUE_COOLDOWN_DAYS} days) and then decide to run update or skip"
+        run_cmd ssh -p "$NAS_SSH_PORT" "${NAS_SSH_USER}@${NAS_SSH_HOST}" "$NAS_COOLDOWN_CHECK_CMD"
+        run_cmd ssh -p "$NAS_SSH_PORT" "${NAS_SSH_USER}@${NAS_SSH_HOST}" "$NAS_UPDATE_CMD"
+    else
+        echo "1/4 Check NAS issue cooldown (${CERT_ISSUE_COOLDOWN_DAYS} days)"
+        NAS_UPDATE_DECISION="$(ssh -p "$NAS_SSH_PORT" "${NAS_SSH_USER}@${NAS_SSH_HOST}" "$NAS_COOLDOWN_CHECK_CMD")"
+        if [[ "$NAS_UPDATE_DECISION" == "SKIP" ]]; then
+            echo "1/4 Skip NAS cert update: already issued within ${CERT_ISSUE_COOLDOWN_DAYS} days"
+        else
+            echo "1/4 Run cert update on NAS"
+            run_cmd ssh -p "$NAS_SSH_PORT" "${NAS_SSH_USER}@${NAS_SSH_HOST}" "$NAS_UPDATE_CMD"
+        fi
+    fi
 else
     echo "1/4 Skip NAS cert update (--skip-nas-update)"
 fi

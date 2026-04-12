@@ -14,6 +14,8 @@ scripts/run_cert_flow.sh --dry-run
 scripts/run_cert_flow.sh
 ```
 
+If the last successful NAS certificate issue is within `CERT_ISSUE_COOLDOWN_DAYS` (default 15), the flow skips NAS issue/deploy and keeps sync plus nginx reload.
+
 3. Validate service:
 
 ```bash

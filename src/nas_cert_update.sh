@@ -57,3 +57,9 @@ docker exec ${CERT_DOCKER_CONTAINER} find "/root/.acme.sh/${DOMAIN_NAME}" -type 
 
 # 部署证书到Synology DSM
 docker exec ${CERT_DOCKER_CONTAINER} $installCrtCommand
+
+# 记录最近一次成功申请时间（Unix时间戳），供OpenClaw冷却判断
+NAS_CERT_ISSUE_MARKER="${NAS_CERT_ISSUE_MARKER:-./log/last_cert_issue_at}"
+mkdir -p "$(dirname "$NAS_CERT_ISSUE_MARKER")"
+date +%s > "$NAS_CERT_ISSUE_MARKER"
+echo -e "${GREEN}证书申请时间戳已更新: ${NAS_CERT_ISSUE_MARKER}${NC}"
