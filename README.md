@@ -1,3 +1,30 @@
+# NASBridge OpenClaw Skill
+
+本仓库已调整为 **skill-first** 结构，可直接作为 OpenClaw/Codex skill 使用。
+
+## Skill 入口
+
+- `SKILL.md`：skill 主说明与触发范围
+- `agents/openai.yaml`：skill UI 元数据
+- `scripts/run_cert_flow.sh`：统一证书编排入口（OpenClaw 执行）
+- `references/`：环境变量映射、主机边界、运维手册
+
+## 快速运行
+
+```bash
+# 先模拟执行
+scripts/run_cert_flow.sh --dry-run
+
+# 再真实执行
+scripts/run_cert_flow.sh
+```
+
+该流程会执行：
+1. OpenClaw SSH 到 NAS 更新证书
+2. 证书从 NAS 拉到 OpenClaw 本机
+3. 证书从 OpenClaw 推到服务器
+4. SSH 到服务器 reload nginx
+
 # 这是一个用作我个人NAS有关内网穿透的实践
 
 ## 项目简介
@@ -222,5 +249,4 @@
 - 不提供任何担保
 
 详细条款请参阅 [MIT License](https://opensource.org/licenses/MIT)。
-
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "NASBridge Ops"
+  short_description: "Operate NAS/server cert and proxy workflows."
+  default_prompt: "Use $openclaw-nasbridge to run NASBridge cross-host operations safely with a dry-run first."
+
+policy:
+  allow_implicit_invocation: true

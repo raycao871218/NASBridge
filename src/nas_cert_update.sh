@@ -42,7 +42,7 @@ if ! docker ps -a | grep -q "${CERT_DOCKER_CONTAINER}"; then
     exit 1
 fi
 
-generateCrtCommand="acme.sh --force --log --issue --server ${CERT_SERVER} --dns ${CERT_DNS_SLEEP} -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\""
+generateCrtCommand="acme.sh --force --log --issue --server ${CERT_SERVER} --dns ${CERT_DNS_TYPE} --dnssleep ${CERT_DNS_SLEEP} -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\""
 
 installCrtCommand="acme.sh --deploy -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\" --deploy-hook synology_dsm"
 
