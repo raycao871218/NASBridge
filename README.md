@@ -250,3 +250,75 @@ scripts/run_cert_flow.sh
 
 详细条款请参阅 [MIT License](https://opensource.org/licenses/MIT)。
 
+
+## TMDB 影视元数据同步脚本
+
+新增脚本：`src/tmdb_media_sync.py`
+
+能力：
+- 扫描影视库目录，先检查资源是否完整（默认 `nfo + poster.jpg + fanart.jpg`）
+- 资源完整则跳过，不重复抓取
+- 资源缺失时，从 TMDB 抓取元数据和图片并写入 NFO
+- 支持手动指定 `imdb_id` / `tmdb_id`，用于纠正搜索匹配错误
+
+### 依赖
+
+项目已包含依赖：`requests`
+
+### 使用示例
+
+1) 扫描整个影视库（仅顶层目录）
+
+```bash
+export TMDB_API_KEY="你的tmdb_api_key"
+python3 src/tmdb_media_sync.py --library-root /volume1/video/Movies
+```
+
+2) 递归扫描
+
+```bash
+python3 src/tmdb_media_sync.py --library-root /volume1/video --recursive
+```
+
+3) 只处理单个目录，并强制指定 `tmdb_id`
+
+```bash
+python3 src/tmdb_media_sync.py \
+  --library-root /volume1/video/Movies \
+  --item-path "/volume1/video/Movies/Inception (2010)" \
+  --media-type movie \
+  --tmdb-id 27205
+```
+
+4) 只处理单个目录，并强制指定 `imdb_id`
+
+```bash
+python3 src/tmdb_media_sync.py \
+  --library-root /volume1/video/TV \
+  --item-path "/volume1/video/TV/Severance (2022)" \
+  --media-type tv \
+  --imdb-id tt11280740
+```
+
+5) 批量指定纠偏映射（按目录名或绝对路径）
+
+```bash
+python3 src/tmdb_media_sync.py \
+  --library-root /volume1/video \
+  --recursive \
+  --override-file references/tmdb_override_example.json
+```
+
+### 参数说明
+
+- `--library-root`：影视库根目录（必填）
+- `--api-key`：TMDB API Key（可用环境变量 `TMDB_API_KEY`）
+- `--recursive`：递归发现有视频文件的目录
+- `--media-type`：`auto|movie|tv`（默认 `auto`）
+- `--item-path`：只处理某个目录
+- `--imdb-id` / `--tmdb-id`：单目录强制 ID
+- `--override-file`：批量纠偏映射 JSON 文件
+- `--overwrite-nfo`：已有 NFO 也重写
+- `--overwrite-images`：已有图片也重下
+- `--dry-run`：只打印计划动作，不落盘
+
