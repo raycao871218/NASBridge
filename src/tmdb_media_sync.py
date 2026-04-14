@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,19 +41,45 @@ class OverrideConfig:
 
 
 class TMDBClient:
-    def __init__(self, api_key: str, language: str, timeout: int = 30):
+    def __init__(
+        self,
+        api_key: str,
+        language: str,
+        timeout: int = 30,
+        max_retries: int = 2,
+        retry_backoff: float = 2.0,
+    ):
         self.api_key = api_key
         self.language = language
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
         self.session = requests.Session()
 
     def _get(self, path: str, **params: Any) -> dict[str, Any]:
         url = f"{TMDB_API_BASE}{path}"
         query = {"api_key": self.api_key, "language": self.language}
         query.update(params)
-        r = self.session.get(url, params=query, timeout=self.timeout)
-        r.raise_for_status()
-        return r.json()
+        for attempt in range(self.max_retries + 1):
+            try:
+                r = self.session.get(url, params=query, timeout=self.timeout)
+                r.raise_for_status()
+                return r.json()
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response is not None else None
+                if status is not None and status < 500 and status != 429:
+                    raise
+                if attempt >= self.max_retries:
+                    raise
+                sleep_s = self.retry_backoff * (2**attempt)
+                print(f"[RETRY] tmdb http {status}: {url} (sleep {sleep_s:.1f}s)")
+                time.sleep(sleep_s)
+            except (requests.ReadTimeout, requests.ConnectTimeout, requests.ConnectionError):
+                if attempt >= self.max_retries:
+                    raise
+                sleep_s = self.retry_backoff * (2**attempt)
+                print(f"[RETRY] tmdb timeout/connection: {url} (sleep {sleep_s:.1f}s)")
+                time.sleep(sleep_s)
 
     def get_movie(self, tmdb_id: int) -> dict[str, Any]:
         return self._get(f"/movie/{tmdb_id}")
@@ -98,6 +125,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--overwrite-nfo", action="store_true", help="Rewrite nfo even if exists")
     p.add_argument("--overwrite-images", action="store_true", help="Redownload images even if exists")
     p.add_argument("--timeout", type=int, default=30)
+    p.add_argument("--max-retries", type=int, default=2, help="Retry times for network requests")
+    p.add_argument("--retry-backoff", type=float, default=2.0, help="Retry backoff base seconds")
     return p.parse_args()
 
 
@@ -333,7 +362,15 @@ def write_nfo(folder: Path, media_type: str, data: dict[str, Any], overwrite: bo
     print(f"[OK] nfo written: {nfo_path}")
 
 
-def download_file(url: str, path: Path, overwrite: bool, dry_run: bool, timeout: int) -> None:
+def download_file(
+    url: str,
+    path: Path,
+    overwrite: bool,
+    dry_run: bool,
+    timeout: int,
+    max_retries: int,
+    retry_backoff: float,
+) -> None:
     if path.exists() and not overwrite:
         return
 
@@ -341,21 +378,63 @@ def download_file(url: str, path: Path, overwrite: bool, dry_run: bool, timeout:
         print(f"[DRY-RUN] download: {url} -> {path}")
         return
 
-    r = requests.get(url, timeout=timeout)
-    r.raise_for_status()
-    path.write_bytes(r.content)
-    print(f"[OK] image saved: {path}")
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.get(url, timeout=timeout)
+            r.raise_for_status()
+            path.write_bytes(r.content)
+            print(f"[OK] image saved: {path}")
+            return
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status is not None and status < 500 and status != 429:
+                raise
+            if attempt >= max_retries:
+                raise
+            sleep_s = retry_backoff * (2**attempt)
+            print(f"[RETRY] image http {status}: {url} (sleep {sleep_s:.1f}s)")
+            time.sleep(sleep_s)
+        except (requests.ReadTimeout, requests.ConnectTimeout, requests.ConnectionError):
+            if attempt >= max_retries:
+                raise
+            sleep_s = retry_backoff * (2**attempt)
+            print(f"[RETRY] image timeout/connection: {url} (sleep {sleep_s:.1f}s)")
+            time.sleep(sleep_s)
 
 
-def write_images(folder: Path, data: dict[str, Any], overwrite: bool, dry_run: bool, timeout: int) -> None:
+def write_images(
+    folder: Path,
+    data: dict[str, Any],
+    overwrite: bool,
+    dry_run: bool,
+    timeout: int,
+    max_retries: int,
+    retry_backoff: float,
+) -> None:
     poster = data.get("poster_path")
     backdrop = data.get("backdrop_path")
 
     if poster:
-        download_file(f"{TMDB_IMAGE_BASE}{poster}", folder / "poster.jpg", overwrite, dry_run, timeout)
+        download_file(
+            f"{TMDB_IMAGE_BASE}{poster}",
+            folder / "poster.jpg",
+            overwrite,
+            dry_run,
+            timeout,
+            max_retries,
+            retry_backoff,
+        )
 
     if backdrop:
-        download_file(f"{TMDB_IMAGE_BASE}{backdrop}", folder / "fanart.jpg", overwrite, dry_run, timeout)
+        download_file(
+            f"{TMDB_IMAGE_BASE}{backdrop}",
+            folder / "fanart.jpg",
+            overwrite,
+            dry_run,
+            timeout,
+            max_retries,
+            retry_backoff,
+        )
 
 
 def get_override_for_folder(
@@ -398,7 +477,7 @@ def process_folder(
 
     try:
         resolved = resolve_tmdb_item(client, folder, media_type, override)
-    except requests.HTTPError as e:
+    except requests.RequestException as e:
         print(f"[ERR] tmdb request failed: {folder} -> {e}")
         return
 
@@ -412,11 +491,22 @@ def process_folder(
         try:
             ext = client._get(f"/tv/{data.get('id')}/external_ids")
             data["external_ids"] = ext
-        except requests.HTTPError:
+        except requests.RequestException:
             pass
 
     write_nfo(folder, final_type, data, args.overwrite_nfo, args.dry_run)
-    write_images(folder, data, args.overwrite_images, args.dry_run, args.timeout)
+    try:
+        write_images(
+            folder,
+            data,
+            args.overwrite_images,
+            args.dry_run,
+            args.timeout,
+            args.max_retries,
+            args.retry_backoff,
+        )
+    except requests.RequestException as e:
+        print(f"[WARN] image download failed: {folder} -> {e}")
 
 
 def main() -> int:
@@ -434,7 +524,13 @@ def main() -> int:
     override_map = load_override_map(args.override_file)
     single_override = OverrideConfig(imdb_id=args.imdb_id, tmdb_id=args.tmdb_id, media_type=args.media_type)
 
-    client = TMDBClient(args.api_key, args.language, timeout=args.timeout)
+    client = TMDBClient(
+        args.api_key,
+        args.language,
+        timeout=args.timeout,
+        max_retries=args.max_retries,
+        retry_backoff=args.retry_backoff,
+    )
 
     if args.item_path:
         folders = [Path(args.item_path).expanduser().resolve()]

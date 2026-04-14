@@ -321,4 +321,6 @@ python3 src/tmdb_media_sync.py \
 - `--overwrite-nfo`：已有 NFO 也重写
 - `--overwrite-images`：已有图片也重下
 - `--dry-run`：只打印计划动作，不落盘
-
+- `--timeout`：单次网络请求超时秒数（默认 30）
+- `--max-retries`：网络失败后的重试次数（默认 2）
+- `--retry-backoff`：指数退避基础秒数（默认 2.0）
