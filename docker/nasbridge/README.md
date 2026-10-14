@@ -33,6 +33,72 @@ docker compose -f compose.yaml up -d --build
 
 视频以只读方式挂载到 `/app/media/rhino`，由现有索引关联文件；FFmpeg 由固定版本 `imageio-ffmpeg` 包提供。应用配置通过宿主机挂载读取，真实配置不会复制到新镜像中。
 
+## 日常开发与更新部署
+
+推荐流程：**本地修改和验证 → 提交并推送 GitHub → NAS 拉取 → 构建、测试和更新容器**。日常源码修改统一在本地完成。
+
+### 分支约定
+
+源码导入 PR #23 已合并，NAS 后续从 `master` 部署，本地通过功能分支开发并提交 PR。先执行 `git branch --show-current` 确认当前分支；推送功能分支不会自动更新 `master`。
+
+如果本地或 NAS 仍停留在原源码导入分支，请在工作区干净时执行一次：
+
+```sh
+git fetch origin
+git checkout master
+git pull --ff-only origin master
+```
+
+以后通过功能分支开发、PR 合并到 `master`，NAS 从 `master` 部署。切换前先确认工作区干净。
+
+### 本地提交
+
+进入本地 NASBridge 仓库根目录，先更新分支，再修改和测试代码：
+
+```sh
+git status --short --branch
+git pull --ff-only
+# 修改代码，并按下方“验证”章节运行相应测试。
+git add .gitignore README.md docker/nasbridge
+git diff --cached --stat
+git diff --cached --check
+git commit -m "描述本次修改"
+git push
+```
+
+提交前查看暂存差异，确认不包含真实域名、内网地址、密码或运行数据。新增其他目录的文件时按需单独暂存，不使用 `git add -f` 绕过忽略规则。使用 PR 时，部署前应先确认改动已合并到 NAS 使用的分支。
+
+### NAS 拉取与部署
+
+通过 SSH 登录 NAS，进入该仓库根目录。以下示例使用普通 `git`、`docker`；群晖若提示找不到命令，分别使用 `/usr/local/bin/git`、`/usr/local/bin/docker`，Docker 权限不足时添加 `sudo`。
+
+先检查 `git status --short --branch`。工作区干净、分支正确后，顺序执行下列命令；`&&` 确保拉取、构建或测试失败时不会继续部署：
+
+```sh
+git pull --ff-only && \
+cd docker/nasbridge && \
+docker compose -f compose.yaml config --quiet && \
+docker compose -f compose.yaml build && \
+docker run --rm --network none \
+  -e NASBRIDGE_CONFIG=/app/config/config.yaml.example \
+  -v "$PWD/tests:/app/tests:ro" \
+  nasbridge:local python -m unittest discover -s tests -p 'test_*.py' -v && \
+docker compose -f compose.yaml up -d
+```
+
+部署后检查容器状态和最近日志，并在网页确认功能：
+
+```sh
+docker compose -f compose.yaml ps
+docker compose -f compose.yaml logs --tail=100 nasbridge
+```
+
+已有 NAS 不需要再次复制首次部署的模板。`.env`、`compose.yaml`、真实应用配置与运行数据均被忽略，正常拉取不会覆盖；如果新版本调整了模板，需对照变更手动更新本地配置。
+
+### 拉取冲突与失败
+
+如果 `git pull --ff-only` 提示本地修改或分支分叉，停止部署，先用 `git status` 和 `git diff` 检查。备份并将需要保留的 NAS 修改整理为提交，再合并处理；不要通过 `git reset --hard` 或 `git clean -fd` 直接丢弃现场内容。构建或测试失败时先修复问题，原有运行容器仍继续使用旧镜像。
+
 ## 数据与接口
 
 数据库连接通过 `NASBRIDGE_POSTGRES_HOST/PORT/DATABASE/USER/PASSWORD` 环境变量配置。
