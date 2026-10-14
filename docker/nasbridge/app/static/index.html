@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NASBridge</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+  <meta name="theme-color" content="#0B1B29">
     <style>
     :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -11,6 +13,9 @@
     body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(ellipse at 84% -10%,rgba(92,126,204,.15),transparent 34%),var(--bg); font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
     main { width:min(100%,1680px); min-height:100vh; margin:auto; padding:28px 30px 38px; display:grid; grid-template-columns:226px minmax(0,1fr); grid-template-rows:auto 1fr; align-items:start; column-gap:30px; }
     header { grid-column:2; grid-row:1; display:flex; align-items:center; justify-content:space-between; gap:24px; min-height:72px; margin:0 0 18px; }
+    .brand-lockup { display:flex; align-items:center; gap:14px; min-width:0; }
+    .brand-mark { width:58px; height:58px; flex:none; filter:drop-shadow(0 6px 15px rgba(0,0,0,.18)); }
+    @media(max-width:560px) { .brand-mark { width:44px; height:44px; } .brand-lockup { gap:10px; } }
     header h1 { margin:0; font-size:25px; line-height:1.25; letter-spacing:-.6px; }
     h2 { margin:0; font-size:16px; font-weight:650; letter-spacing:-.15px; }
     h3 { margin:0 0 14px; font-size:14px; font-weight:650; }
@@ -167,7 +172,7 @@
 <body>
 <main>
   <header>
-    <div><div class="eyebrow">NAS 管理面板</div><h1>NASBridge</h1><div class="muted header-note">代理连接与 HTTPS 服务管理</div></div>
+    <div class="brand-lockup"><img class="brand-mark" src="/static/logo.svg" width="58" height="58" alt=""><div><div class="eyebrow">NAS 管理面板</div><h1>NASBridge</h1><div class="muted header-note">代理连接与 HTTPS 服务管理</div></div></div>
     <div class="topbar-actions"><button onclick="load()">刷新数据</button></div>
   </header>
   <nav class="view-tabs" role="tablist" aria-label="功能模块">
