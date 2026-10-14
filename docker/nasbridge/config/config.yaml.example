@@ -1,0 +1,43 @@
+app:
+  name: NASBridge
+  public_base_url: "http://nas-ip:18080"
+
+mihomo:
+  url: "http://host.docker.internal:9090"
+  secret_env: "MIHOMO_SECRET"
+  timeout_seconds: 3
+
+applications:
+  - id: qbittorrent
+    name: "qBittorrent"
+    expected_mode: proxy
+    source_ips: ["127.0.0.1"]
+    process_contains: ["qbittorrent"]
+    qbt_config: "/host/qbittorrent/qBittorrent.conf"
+
+certificates:
+  local:
+    - id: nas_cert
+      name: "NAS certificate"
+      path: "/host/certs/example/fullchain.pem"
+      domain: "example.com"
+  remote:
+    - id: remote_https
+      name: "Remote HTTPS certificate"
+      host: "203.0.113.10"
+      port: 443
+      server_name: "example.com"
+      local_ref: "nas_cert"
+      sync_enabled: false
+      ssh_host: "203.0.113.10"
+      ssh_user: "root"
+      ssh_port: 22
+      ssh_key_path: "/root/.ssh/id_ed25519"
+      ssh_known_hosts: "/root/.ssh/known_hosts"
+      remote_cert_path: "/etc/nginx/ssl/fullchain.pem"
+      remote_key_path: "/etc/nginx/ssl/privkey.pem"
+      remote_backup_dir: "/var/backups/nasbridge"
+
+zerotier:
+  # Optional link to your controller UI; keep the actual address in local config.
+  admin_url: ""
