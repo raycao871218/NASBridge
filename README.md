@@ -326,3 +326,5 @@ python3 src/tmdb_media_sync.py \
 ## NAS Docker 管理面板
 
 NAS 上实际运行的网页和移动端 HTTP 接口位于 [docker/nasbridge](docker/nasbridge/README.md)，包含部署模板、短信归档、视频与文章接口及测试。真实配置和运行数据不纳入版本管理。
+
+本地提交、GitHub 同步与 NAS 拉取部署流程见 [日常开发与更新部署](docker/nasbridge/README.md#日常开发与更新部署)。
