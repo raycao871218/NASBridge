@@ -1,0 +1,73 @@
+# Copy to compose.yaml and configure .env before use.
+services:
+  nasbridge:
+    build:
+      context: .
+      args:
+        HTTP_PROXY: ${NASBRIDGE_BUILD_HTTP_PROXY:-}
+        HTTPS_PROXY: ${NASBRIDGE_BUILD_HTTPS_PROXY:-}
+        ALL_PROXY: ${NASBRIDGE_BUILD_ALL_PROXY:-}
+    image: nasbridge:local
+    container_name: nasbridge
+    restart: unless-stopped
+    ports:
+      - "18080:18080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: Asia/Shanghai
+      NASBRIDGE_POSTGRES_HOST: ${NASBRIDGE_POSTGRES_HOST:-host.docker.internal}
+      NASBRIDGE_POSTGRES_PORT: ${NASBRIDGE_POSTGRES_PORT:-5432}
+      NASBRIDGE_POSTGRES_DATABASE: ${NASBRIDGE_POSTGRES_DATABASE:-nasbridge}
+      NASBRIDGE_POSTGRES_USER: ${NASBRIDGE_POSTGRES_USER:-nasbridge}
+      NASBRIDGE_POSTGRES_PASSWORD: ${NASBRIDGE_POSTGRES_PASSWORD:-}
+      NASBRIDGE_CONFIG: /app/config/config.yaml
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${ALIBABA_CLOUD_ACCESS_KEY_ID:-}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
+      MIHOMO_SECRET: ${MIHOMO_SECRET:-}
+      MIHOMO_CONTROL_URL: http://mihomo-control:8001
+      NO_PROXY: host.docker.internal,localhost,127.0.0.1,192.0.2.0/24,172.16.0.0/12
+      no_proxy: host.docker.internal,localhost,127.0.0.1,192.0.2.0/24,172.16.0.0/12
+    depends_on:
+      - mihomo-control
+    networks:
+      default:
+        ipv4_address: 172.20.0.2
+      mihomo-control: {}
+    volumes:
+      - ${NASBRIDGE_DOMAINS_CONFIG:-../../domains_config.yaml}:/app/services/domains_config.yaml:ro
+      - ./config:/app/config
+      - ./data:/app/data
+      - ${NASBRIDGE_RHINO_MEDIA:?Set NASBRIDGE_RHINO_MEDIA in .env}:/app/media/rhino:ro
+      - ${NASBRIDGE_MIHOMO_DIR:?Set NASBRIDGE_MIHOMO_DIR in .env}:/host/mihomo:rw
+      - ${NASBRIDGE_CERT_DIR:?Set NASBRIDGE_CERT_DIR in .env}:/host/certs/azk:ro
+      - ${NASBRIDGE_QBITTORRENT_CONFIG:?Set NASBRIDGE_QBITTORRENT_CONFIG in .env}:/host/qbittorrent/qBittorrent.conf:ro
+      - ${NASBRIDGE_SSH_DIR:?Set NASBRIDGE_SSH_DIR in .env}:/root/.ssh:ro
+
+  mihomo-control:
+    build:
+      context: ./mihomo-control
+    image: nasbridge-mihomo-control:local
+    container_name: nasbridge-mihomo-control
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    expose:
+      - "8001"
+    networks:
+      - mihomo-control
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  mihomo-control:
+    internal: true

@@ -53,3 +53,17 @@ Thumbs.db
 *.log.*.*.*
 *.log.*.*.*.*
 *.log.*.*.*.*.*
+
+# NASBridge deployment data, local configuration, and historical snapshots
+/docker/nasbridge/.env*
+!/docker/nasbridge/.env.example
+/docker/nasbridge/compose.yaml
+!/docker/nasbridge/compose.example.yaml
+/docker/nasbridge/config/*
+!/docker/nasbridge/config/config.yaml.example
+/docker/nasbridge/data/
+/docker/nasbridge/backups/
+/docker/nasbridge/**/*.bak
+/docker/nasbridge/**/*.before-*
+/docker/nasbridge/*.before-*
+/docker/nasbridge/**/.pytest_cache/

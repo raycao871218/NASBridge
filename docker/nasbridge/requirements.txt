@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+PyYAML==6.0.2
+cryptography==44.0.0
+paramiko==3.5.1
+
+aliyun-python-sdk-core==2.16.0
+psycopg2-binary==2.9.10

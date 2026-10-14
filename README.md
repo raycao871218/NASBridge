@@ -322,3 +322,7 @@ python3 src/tmdb_media_sync.py \
 - `--overwrite-images`：已有图片也重下
 - `--dry-run`：只打印计划动作，不落盘
 
+
+## NAS Docker 管理面板
+
+NAS 上实际运行的网页和移动端 HTTP 接口位于 [docker/nasbridge](docker/nasbridge/README.md)，包含部署模板、短信归档、视频与文章接口及测试。真实配置和运行数据不纳入版本管理。

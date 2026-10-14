@@ -1,0 +1,10 @@
+**
+!requirements.txt
+!app/
+!app/**
+!config/
+!config/config.yaml.example
+**/__pycache__/
+**/*.py[cod]
+**/*.bak
+**/*.before-*
