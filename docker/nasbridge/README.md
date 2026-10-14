@@ -75,7 +75,15 @@ git push
 先检查 `git status --short --branch`。工作区干净、分支正确后，顺序执行下列命令；`&&` 确保拉取、构建或测试失败时不会继续部署：
 
 ```sh
-git pull --ff-only && cd docker/nasbridge && docker compose -f compose.yaml config --quiet && docker compose -f compose.yaml build && docker run --rm --network none   -e NASBRIDGE_CONFIG=/app/config/config.yaml.example   -v "$PWD/tests:/app/tests:ro"   nasbridge:local python -m unittest discover -s tests -p 'test_*.py' -v && docker compose -f compose.yaml up -d
+git pull --ff-only && \
+cd docker/nasbridge && \
+docker compose -f compose.yaml config --quiet && \
+docker compose -f compose.yaml build && \
+docker run --rm --network none \
+  -e NASBRIDGE_CONFIG=/app/config/config.yaml.example \
+  -v "$PWD/tests:/app/tests:ro" \
+  nasbridge:local python -m unittest discover -s tests -p 'test_*.py' -v && \
+docker compose -f compose.yaml up -d
 ```
 
 部署后检查容器状态和最近日志，并在网页确认功能：
