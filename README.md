@@ -1,259 +1,101 @@
-# NASBridge OpenClaw Skill
+# NASBridge
 
-本仓库已调整为 **skill-first** 结构，可直接作为 OpenClaw/Codex skill 使用。
+NASBridge 包含 NAS 管理面板和独立的运维脚本：面板用于日常查看与管理，脚本可通过 Shell、任务计划或 OpenClaw/Codex skill 执行。两者的配置、依赖和执行入口分别维护。
 
-## Skill 入口
+## 从哪里开始
 
-- `SKILL.md`：skill 主说明与触发范围
-- `agents/openai.yaml`：skill UI 元数据
-- `scripts/run_cert_flow.sh`：统一证书编排入口（OpenClaw 执行）
-- `references/`：环境变量映射、主机边界、运维手册
+- **部署或更新 NAS 网页面板**：[Docker 面板说明](docker/nasbridge/README.md)。
+- **本地修改 → GitHub → NAS 拉取部署**：[开发与更新流程](docker/nasbridge/README.md#日常开发与更新部署)。
+- **使用 OpenClaw/Codex 编排证书任务**：[SKILL.md](SKILL.md) 与 [运维手册](references/ops-playbook.md)。
+- **配置 ZeroTier 网络**：[部署与排错指南](zerotier.md)。
 
-## 快速运行
+## 当前功能与入口
 
-```bash
-# 先模拟执行
-scripts/run_cert_flow.sh --dry-run
+| 入口 | 已实现的功能 | 执行边界 |
+| --- | --- | --- |
+| Docker 网页面板 | Mihomo 状态、连接、配置和指定容器启停；证书检查与同步；Nginx 反代管理；阿里云安全组；ZeroTier 成员管理；每日任务结果；短信归档与验证码复制 | 使用独立容器、数据库与宿主机挂载配置，详见面板 README |
+| 移动端 HTTP API | 文章列表/全文/已读状态，视频目录/缩略图/Range 播放，短信搜索和验证码提取，手动 Google 连通性检测 | Android 工程另行维护；本仓库提供后端接口 |
+| 证书编排脚本 | NAS 申请/部署 → 拉到执行机 → 同步到远端 → reload Nginx | 通过 SSH/rsync 调用；默认有 15 天签发冷却判断 |
+| 网络与证书检查脚本 | NAS/服务器可达性、证书有效期、按配置发送邮件或 Telegram 通知 | 独立执行，需要配置通知凭据；不会由面板自动调度 |
+| hosts 与路由器脚本 | 按 NAS/OpenWrt 优先级更新 hosts、更新 GitHub hosts 数据、更新 IPv6 防火墙地址 | 修改执行机器的网络配置，需对应权限与环境 |
+| 影视元数据脚本 | 从 TMDB 补全 NFO、海报和背景图，支持手动 ID 纠偏 | 独立扫描媒体目录，不是网页功能或视频下载器 |
 
-# 再真实执行
-scripts/run_cert_flow.sh
+服务器候选地址选择与 hosts 更新采用配置优先级和可达性判断，不是按延迟、带宽或负载选出“最优节点”的负载均衡。ZeroTier/公网反代的实际速度取决于链路、直连或中继状态及带宽，仓库不保证固定速度排序。
+
+仓库保留 `src/notify/` 的邮件和 Telegram 通知代码；这是运维脚本使用的通知能力。Docker 面板和 Android 后端没有内置手机推送通道。
+
+## 目录与配置
+
+```text
+docker/nasbridge/  网页面板、移动端 API、Docker 部署模板与测试
+src/              证书、反代、网络、hosts、通知及 TMDB 脚本
+scripts/          证书编排统一入口
+references/       环境变量映射、主机边界、运维手册与纠偏示例
+SKILL.md          OpenClaw/Codex skill 说明
+agents/           skill UI 元数据
 ```
 
-该流程会执行：
-1. OpenClaw SSH 到 NAS 更新证书
-2. 证书从 NAS 拉到 OpenClaw 本机
-3. 证书从 OpenClaw 推到服务器
-4. SSH 到服务器 reload nginx
+根目录 `.env.example` 用于独立运维脚本，`domains_config.yaml.example` 用于域名与服务清单；`docker/nasbridge/.env.example` 和 `config/config.yaml.example` 用于 Docker 面板。实际配置均在部署机器上填写，不提交密码、私钥、个人地址或运行数据。
 
-# 这是一个用作我个人NAS有关内网穿透的实践
+## 独立脚本环境
 
-## 项目简介
-本项目提供了一套完整的NAS远程访问解决方案，包含内网穿透和通知系统两大功能模块。通过ZeroTier实现安全的远程访问，支持多种部署方案以满足不同场景需求。
+以下命令在仓库根目录执行。建议使用 Python 3.10+ 的独立虚拟环境：
 
-## 主要功能
+```sh
+python3 -m venv venv
+. venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+cp domains_config.yaml.example domains_config.yaml
+```
 
-### 🌐 网络访问
-- **内网穿透**：通过 ZeroTier 实现 NAS 资源的远程安全访问
-- **负载均衡**：自动切换最优可用的内网服务节点
-- **反向代理**：自动化生成和管理 Nginx 配置
+先编辑实际配置，再运行相应脚本。根目录依赖清单尚未列入 `src/check_ssl_expiry.py` 导入的 `cryptography`，使用该脚本时需额外安装：
 
-### 🔔 通知系统
-- **多渠道推送**：支持邮件和 Telegram 通知
-- **事件通知**：系统状态变更、证书更新等关键事件推送
+```sh
+python -m pip install cryptography
+```
 
-### 路由器自动更新
-- **添加host支持github**: 脚本定期获取[github520](https://github.com/521xueweihan/GitHub520)的数据源添加至hosts文件
+证书编排还需要 Bash、SSH、rsync，以及 NAS 上配置好的 acme.sh 容器和远端 Nginx。Nginx/Caddy 生成脚本需要目标软件、配置目录写权限和 reload 权限。脚本不是默认常驻服务，需要重复执行时由任务计划或外部调度器触发。
 
-### 📖 配置文档
-- **服务器ZeroTier 配置指南**：详细的服务器端 ZeroTier 部署和故障排除说明 → [查看文档](zerotier.md)
+### 推荐的证书编排入口
 
-### 📊 监控与测试
-- **网络监控**：
-  - NAS 网络连通性检测
-  - ZeroTier 网络状态监控
-  - 反向代理服务可用性测试
-- **证书管理**：
-  - SSL 证书有效期监控
-  - 自动化证书更新提醒
-  - 证书同步状态检查
-- **智能域名解析**：
-  - 自动检测 NAS 和 OpenWrt 连通性
-  - 动态调整 hosts 文件中的域名解析
-  - 优先级管理：NAS > OpenWrt > 注释
+在执行机配置根目录 `.env`，变量说明见 [环境映射](references/env-mapping.md)，主机职责见 [目标边界](references/target-boundary.md)。先预览，再执行真实操作：
 
-## 网络访问速度对比
-| 访问方式 | 速度优先级 | 适用场景 |
-|---------|----------|----------|
-| 内网直连 | 最快 | 局域网内访问 |
-| ZT网络 | 较快 | 远程私有访问 |
-| 公网代理 | 较慢 | 公开访问 |
+```sh
+bash scripts/run_cert_flow.sh --dry-run
+# 确认 SSH 主机、源/目标目录和 reload 命令后执行：
+bash scripts/run_cert_flow.sh
+```
 
-## 内网穿透方案
+入口支持 `--env <path>` 和 `--skip-nas-update`。签发冷却由 `CERT_ISSUE_COOLDOWN_DAYS` 控制，默认 15 天；跳过签发时仍会同步现有证书并 reload Nginx。证书是否按期更新还取决于外部调度，脚本本身不会自动创建计划任务。历史脚本 `src/nas_sync_cert.sh` 保留在仓库，新的跨主机流程优先使用上述编排入口。
 
-### 方案一：ZT私有网络（推荐）
-适用于个人或家庭使用，通过ZeroTier实现安全的远程访问。
+### 其他脚本
 
-#### 优点
-- 安全性高：基于ZeroTier的加密通信
-- 速度快：带宽仅受限于家庭网络
-- 成本低：无需公网服务器
-- 配置简单：一次配置，长期稳定
+| 脚本 | 行为 |
+| --- | --- |
+| `src/nas_cert_update.sh` | 在 NAS 调用 acme.sh 容器申请证书并部署到群晖 DSM，由编排入口远程调用 |
+| `src/check_ssl_expiry.py` | 读取根目录域名清单，检查证书，并按脚本逻辑发送邮件/Telegram 通知 |
+| `src/nas_ping_test.py` | 检查 NAS 网络与配置的服务端口，生成 Telegram 报告 |
+| `src/server_ping_test.py` | 检查候选地址，按优先级调整 Nginx 后端，并在需要时 reload/通知 |
+| `src/server_load_proxy_from_config.py` | 读取根目录 `domains_config.yaml`，按 `PROXY_SERVER_TYPE` 调用 Nginx/Caddy 生成器并 reload；当前入口不读取旧 `services.conf` |
+| `src/server_create_nginx_proxy.py`、`src/server_create_caddy_proxy.py` | 按 `port usage` 位置参数与可选参数生成对应代理配置 |
+| `src/hosts_update.py` | 根据 NAS/OpenWrt 可达性和优先级更新执行机 hosts |
+| `src/router_hosts_update.py` | 获取 GitHub hosts 数据，更新指定 hosts 文件的对应区段 |
+| `src/router_fw_nax_prefix.py` | 按环境变量更新路由器 IPv6 防火墙地址并执行配置的重启命令 |
 
-#### 缺点
-- 需要手动为每个设备安装ZT客户端
-- 首次配置需要一定技术基础
+例如，在完成相关配置和权限检查后运行代理配置加载器；查看单站点生成器的参数：
 
-#### 所需设备
-- NAS设备（如群晖等）
-- ZeroTier网络
-- 需要访问NAS的终端设备
+```sh
+python3 src/server_load_proxy_from_config.py
+python3 src/server_create_nginx_proxy.py --help
+python3 src/server_create_caddy_proxy.py --help
+```
 
-#### 部署步骤
-1. NAS安装证书管理工具
-   ```bash
-   # 方式一：Docker命令安装
-   docker pull neilpang/acme.sh
-   
-   # 方式二：通过NAS的Docker应用中心安装
-   # 搜索并安装 neilpang/acme.sh
-   ```
-
-2. NAS配置反向代理服务器
-   > 目的：实现HTTPS安全访问
-   - 群晖配置路径：控制面板 -> 登录门户 -> 高级 -> 反向代理服务器
-   - 示例：将HTTP 8123端口代理到HTTPS 8124
-   - 特殊服务说明：
-     * HomeAssistant等需要WebSocket支持的服务需要额外配置header
-     * 具体配置参考各服务的官方文档
-
-3. 配置SSL证书
-   - 群晖配置路径：控制面板 -> 安全性 -> 证书
-   - 确保证书正确安装并应用到相应的服务
-
-4. 部署自动化脚本
-   - 克隆本项目到NAS
-   - 复制`.env.example`为`.env`并配置环境变量
-   - 配置证书自动更新：
-     * 脚本路径：`src/nas_cert_update.sh`
-     * 执行权限：可能需要ROOT权限
-     * 更新周期：建议60天
-   - 群晖自动化配置：控制面板 -> 任务计划 -> 计划的任务 -> 用户定义脚本
-
-5. ZeroTier网络配置
-   - 注册并创建ZT网络
-   - NAS安装ZT客户端（通过套件中心）
-   - 终端设备安装ZT客户端
-   - 将所有设备加入网络并在ZT控制面板授权
-
-6. 连接测试
-   - 通过ZT网络IP访问NAS
-   - 验证HTTPS证书是否生效
-   - 测试各项服务是否正常
-
-#### 域名访问配置（可选）
-1. DNS解析方案
-   - 将域名解析到NAS的ZT网络IP
-   - 适用于所有ZT网络内的设备
-
-2. 路由器劫持方案（推荐）
-   - 配置路由器的域名劫持功能
-   - 内网访问：自动劫持到NAS内网IP
-   - 外网访问：通过ZT网络IP访问
-   > 注意：如果设备修改了hosts，需要先关闭才能使用内网直连
-
-### 方案二：公网服务器代理
-适用于需要公开访问或无法安装ZT客户端的场景。
-
-#### 优点
-- 无需客户端：可直接通过浏览器访问
-- 随时可用：不依赖特定软件
-- 公开访问：支持分享给他人
-
-#### 缺点
-- 带宽受限：取决于服务器带宽
-- 安全风险：暴露在公网
-- 配置复杂：需要更多安全措施
-- 成本较高：需要维护服务器
-
-#### 所需设备
-- NAS设备
-- 公网服务器
-- ZeroTier网络（用于NAS与服务器通信）
-
-#### 部署步骤
-基础配置同方案一，额外步骤：
-
-1. 在NAS中执行证书同步脚本
-   ```bash
-   # 方式一：使用项目提供的同步脚本
-   src/nas_sync_cert.sh
-   
-   # 方式二：使用caddy/certbot（需单独维护证书）可跳过该步骤
-   ```
-
-2. 服务器配置
-   - 安装并配置ZeroTier
-   - 克隆本项目
-   - 配置环境变量：复制`.env.example`为`.env`
-   - 配置反向代理：修改`services.conf`
-
-3. 服务器中，Web服务器安装
-   - 支持nginx或caddy
-   - 建议使用caddy（自动管理SSL证书）
-
-4. 服务器中，反向代理配置
-   ```bash
-   # 方式一：自动配置（推荐）
-   python3 server_load_proxy_from_config.py
-   
-   # 方式二：手动配置
-   python3 server_create_nginx_proxy.py {配置参数}
-   nginx -s reload  # 重载配置
-   ```
-
-5. 域名配置
-   - 将域名解析到服务器公网IP
-
-#### 访问优化（可选）
-1. hosts优化
-   - ZT网络设备：添加hosts指向NAS的ZT IP
-   - 可绕过服务器直接访问NAS
-
-2. 路由器优化
-   - 配置域名劫持到NAS内网IP
-   - 实现内外网智能切换
-   > 注意：配置hosts后需要关闭才能使用内网直连
-
-## 项目依赖
-
-### NAS环境
-- [acme.sh](https://github.com/acmesh-official/acme.sh)：SSL证书管理（Docker版）
-- ZeroTier：虚拟局域网
-- Docker：容器环境
-
-### 服务器环境
-- Nginx/Caddy：反向代理服务器
-- ZeroTier：虚拟局域网
-- Python 3.x：运行配置脚本
-
-## 常见问题
-1. 证书更新失败
-   - 检查acme.sh容器状态
-   - 确认域名解析是否正确
-   - 验证更新脚本权限
-
-2. 无法通过ZT访问
-   - 检查ZT网络授权状态
-   - 验证防火墙配置
-   - 确认服务端口是否开放
-
-3. 内外网切换问题
-   - 确认路由器劫持配置
-   - 检查hosts文件设置
-   - 验证DNS解析是否正确
-
-4. 方案二中访问失败
-   - 检查服务器防火墙配置，可能为平台的防火墙，而非系统内软件
-
-## 开源协议
-本项目采用 MIT 开源协议。这意味着您可以：
-
-- 自由使用：可以在任何场景下使用本项目
-- 自由修改：可以修改源代码以适应您的需求
-- 自由分发：可以分发原始或修改后的代码
-- 商业使用：可以将本项目用于商业目的
-
-### 使用限制
-- 需要在副本中包含原始版权声明
-- 作者不承担任何使用责任
-- 不提供任何担保
-
-详细条款请参阅 [MIT License](https://opensource.org/licenses/MIT)。
-
+反代脚本和网页反代管理是不同入口：独立脚本支持 Nginx/Caddy；当前网页管理实现针对远端 Nginx。执行网络和证书检查脚本可能发送真实通知，写入型脚本可能修改 hosts、防火墙、证书或代理配置，使用前应核对目标环境。
 
 ## TMDB 影视元数据同步脚本
 
-新增脚本：`src/tmdb_media_sync.py`
+脚本：`src/tmdb_media_sync.py`
 
 能力：
 - 扫描影视库目录，先检查资源是否完整（默认 `nfo + poster.jpg + fanart.jpg`）
@@ -321,10 +163,3 @@ python3 src/tmdb_media_sync.py \
 - `--overwrite-nfo`：已有 NFO 也重写
 - `--overwrite-images`：已有图片也重下
 - `--dry-run`：只打印计划动作，不落盘
-
-
-## NAS Docker 管理面板
-
-NAS 上实际运行的网页和移动端 HTTP 接口位于 [docker/nasbridge](docker/nasbridge/README.md)，包含部署模板、短信归档、视频与文章接口及测试。真实配置和运行数据不纳入版本管理。
-
-本地提交、GitHub 同步与 NAS 拉取部署流程见 [日常开发与更新部署](docker/nasbridge/README.md#日常开发与更新部署)。

@@ -1,14 +1,18 @@
 # NASBridge Docker 管理面板
 
-这是 NAS 上实际运行的 NASBridge 网页与接口服务源码。当前版本包括：
+这个目录提供网页管理面板及 Android App 使用的 HTTP API。功能以当前代码入口为准：
 
-- Mihomo 在线状态、连接和流量统计、应用识别、配置编辑，以及指定容器的启停控制。
-- 本地和远端证书检查、证书同步计划、远端 Nginx 反向代理管理。
-- 阿里云安全组、ZeroTier 网络与成员管理。
-- 每日任务记录、文章全文、已读状态、犀牛哥视频列表、缩略图与 HTTP Range 播放接口。
-- 短信归档：分页、搜索、展开全文和验证码复制。
+| 模块 | 已实现 | 限制与数据来源 |
+| --- | --- | --- |
+| Mihomo | 状态/连接/流量、应用识别与扫描、配置编辑、指定容器启停 | 通过 Mihomo API 和内部控制容器操作，不管理任意 Docker 容器 |
+| 证书与反代 | 本地/远端证书检查、同步计划、过期配置记录删除；远端 Nginx 反代新增/编辑/删除与验证 | 同步已有证书，不调用 acme.sh 签发；网页不管理 Caddy；证书删除不等于清除磁盘文件 |
+| 阿里云 | 地域/VPC 安全组/入方向规则读取、端口规则预览与确认添加 | 不删除规则，不自动跟随反代开放云端端口 |
+| ZeroTier | 网络/成员/地址池/路由读取，成员备注、IP 与授权修改 | 不编辑网络路由或删除网络；授权不代表在线 |
+| 每日任务 | 读取运行记录和文章摘要，隐藏运行记录、标记文章已读 | 下载、转写和摘要生成由外部任务执行，面板不负责启动它们 |
+| 短信 | 按发送时间倒序分页、发送人/内容搜索、展开全文、验证码复制 | 只读已有短信表，不接收或转存手机短信 |
+| 移动端 API | 文章列表/全文、视频列表/缩略图/HTTP Range 播放、手动 Google 连通性检测 | 视频必须已下载并登记索引；Google 检测由 NAS 经 Mihomo 代理执行，需手动触发 |
 
-Android App 单独维护，通过这些 HTTP API 访问本服务；本目录不包含 Android 工程，也不包含推送服务。
+Android 工程另行维护；倍速、全屏、播放手势和 Host 路由属于 App 实现，不在本目录。Docker 面板没有手机推送接收系统；根目录 `src/notify/` 是独立脚本的邮件/Telegram 通知模块。
 
 ## 首次部署
 
@@ -31,7 +35,7 @@ docker compose -f compose.yaml up -d --build
 
 浏览器访问 `http://<NAS-IP>:18080`。网络示例使用 `172.20.0.0/16`，如与已有 Docker 网络冲突请调整。Docker 构建期间的 pip 代理可在 `.env` 中设置 `NASBRIDGE_BUILD_HTTP_PROXY`、`NASBRIDGE_BUILD_HTTPS_PROXY` 和 `NASBRIDGE_BUILD_ALL_PROXY`；Docker daemon 拉取基础镜像的代理需另外配置。
 
-视频以只读方式挂载到 `/app/media/rhino`，由现有索引关联文件；FFmpeg 由固定版本 `imageio-ffmpeg` 包提供。应用配置通过宿主机挂载读取，真实配置不会复制到新镜像中。
+视频以只读方式挂载到 `/app/media/rhino`。默认视频目录为 `/app/media/rhino/视频`，索引为 `/app/media/rhino/.rhino-finance-video-index.tsv`（每行视频 ID、Tab、文件路径）；只提供索引内且真实存在的 MP4。`NASBRIDGE_VIDEO_ROOT`/`NASBRIDGE_VIDEO_INDEX` 可调整容器内路径，使用时需另行加入本地 Compose 的 environment。缩略图由固定版本 `imageio-ffmpeg` 包提供的 FFmpeg 生成，缓存位于 `/app/data/video-thumbnails`。应用配置通过宿主机挂载读取，真实配置不会复制到新镜像中。
 
 ## 日常开发与更新部署
 
@@ -39,7 +43,7 @@ docker compose -f compose.yaml up -d --build
 
 ### 分支约定
 
-源码导入 PR #23 已合并，NAS 后续从 `master` 部署，本地通过功能分支开发并提交 PR。先执行 `git branch --show-current` 确认当前分支；推送功能分支不会自动更新 `master`。
+NAS 从 `master` 部署，本地通过功能分支开发并提交 PR。先执行 `git branch --show-current` 确认当前分支；推送功能分支不会自动更新 `master`。
 
 如果本地或 NAS 仍停留在原源码导入分支，请在工作区干净时执行一次：
 
@@ -53,17 +57,19 @@ git pull --ff-only origin master
 
 ### 本地提交
 
-进入本地 NASBridge 仓库根目录，先更新分支，再修改和测试代码：
+进入本地 NASBridge 仓库根目录，从更新后的 `master` 创建功能分支，再修改和测试代码（将示例分支名换成本次工作名称）：
 
 ```sh
 git status --short --branch
-git pull --ff-only
+git checkout master
+git pull --ff-only origin master
+git checkout -b feature/your-change
 # 修改代码，并按下方“验证”章节运行相应测试。
 git add .gitignore README.md docker/nasbridge
 git diff --cached --stat
 git diff --cached --check
 git commit -m "描述本次修改"
-git push
+git push -u origin HEAD
 ```
 
 提交前查看暂存差异，确认不包含真实域名、内网地址、密码或运行数据。新增其他目录的文件时按需单独暂存，不使用 `git add -f` 绕过忽略规则。使用 PR 时，部署前应先确认改动已合并到 NAS 使用的分支。

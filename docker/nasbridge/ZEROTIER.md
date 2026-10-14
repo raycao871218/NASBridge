@@ -9,3 +9,5 @@
 代码：app/zerotier.py、app/static/zerotier.js；测试 tests/test_zerotier.py。联调仅查询现有网络，写入通过模拟测试验证，不修改生产成员。
 
 备注从 ztncui etc/storage（node-persist）读取。修改备注会先备份，再原子写回并仅重启 ztncui 网页进程以刷新其内存缓存；不重启 ZeroTier 网络服务。备注按成员 ID 跨网络共享，与原 ztncui 一致。NASBridge 旧本地备注不再覆盖原服务。授权和 IP 修改继续走控制器 API。
+
+“打开原管理界面”读取本地 `config/config.yaml` 的 `zerotier.admin_url`，仅接受不含 URL 账号密码的 HTTP/HTTPS 地址。未配置时提示缺少配置，不再内置个人管理域名。
