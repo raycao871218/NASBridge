@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NASBridge</title>
   <script src="/static/date-format.js?v=20261015"></script>
-  <link rel="stylesheet" href="/static/videos.css?v=20261015">
+  <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
     <style>
     :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -198,7 +198,7 @@
     <section class="panel">
       <label class="field">搜索视频标题<input id="videosQuery" type="search" placeholder="输入标题关键词" maxlength="200"></label>
       <p id="videosStatus" class="status-line" role="status">进入后加载视频</p>
-      <div id="videoItems" class="video-grid"></div>
+      <div id="videoItems"></div>
     </section>
   </section>
   <section id="smsView" class="view">
@@ -706,7 +706,7 @@ toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
-<script src="/static/videos.js?v=20261015"></script>
+<script src="/static/videos.js?v=20261015-dates"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>

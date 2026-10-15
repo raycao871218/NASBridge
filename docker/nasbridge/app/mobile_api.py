@@ -165,7 +165,14 @@ async def video_list() -> dict:
 
 def describe_video(video_id: str) -> dict:
     path = resolve_video(video_id)
+    published_date = None
+    if re.match(r'^\d{8}[-_ ]', path.stem):
+        try:
+            published_date = datetime.strptime(path.stem[:8], '%Y%m%d').date().isoformat()
+        except ValueError:
+            pass
     return {"video_id": video_id, "title": path.stem, "size": path.stat().st_size,
+            "published_date": published_date,
             "stream_path": "api/videos/" + video_id, "thumbnail_version": video_revision(path)}
 
 

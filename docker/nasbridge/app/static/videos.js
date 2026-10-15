@@ -2,17 +2,33 @@
 let videoItems=[],videosRequest=0,videosAbort=null;
 const videoPlayer=document.getElementById('videoPlayer');
 function videoNode(tag,text,cls){const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;}
+function videoDateInfo(item,now=new Date()){
+  const day=item.published_date;
+  const date=typeof day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day)?new Date(day+'T00:00:00'):null;
+  const valid=date&&!Number.isNaN(date.getTime())&&date.getFullYear()===Number(day.slice(0,4))&&date.getMonth()+1===Number(day.slice(5,7))&&date.getDate()===Number(day.slice(8,10));
+  const age=valid?(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()))/86400000:null;
+  return {day:valid?day:null,recent:age!==null&&age>=0&&age<=2,
+    label:valid?formatPanelDate(day,{dateOnly:true,now}):'日期未知',
+    title:valid?String(item.title||'').replace(/^\d{8}[-_ ]+/,''):String(item.title||'')};
+}
 function renderVideos(){
   const query=document.getElementById('videosQuery').value.trim().toLocaleLowerCase();
-  const matches=videoItems.filter(item=>String(item.title||'').toLocaleLowerCase().includes(query));
+  const matches=videoItems.filter(item=>String(item.title||'').toLocaleLowerCase().includes(query))
+    .map(item=>({item,info:videoDateInfo(item)})).sort((a,b)=>(b.info.day||'').localeCompare(a.info.day||'')||String(a.item.title).localeCompare(String(b.item.title),'zh-CN'));
   const container=document.getElementById('videoItems');container.replaceChildren();
-  for(const item of matches){
-    const card=videoNode('button',null,'video-card');card.type='button';card.setAttribute('aria-label','播放：'+item.title);
+  for(const recent of [true,false]){
+    const groupItems=matches.filter(row=>row.info.recent===recent);if(!groupItems.length)continue;
+    const group=videoNode('section',null,'video-group'),grid=videoNode('div',null,recent?'video-recent-row':'video-grid');
+    group.append(videoNode('h3',recent?'最近三天':'往期视频'),grid);container.append(group);
+    for(const {item,info} of groupItems){
+    const card=videoNode('button',null,'video-card');card.type='button';card.setAttribute('aria-label','播放：'+info.label+' · '+info.title);
     const cover=videoNode('span',null,'video-cover'),image=document.createElement('img');
     image.alt='';image.loading='lazy';image.src='/api/videos/'+encodeURIComponent(item.video_id)+'/thumbnail?v='+encodeURIComponent(item.thumbnail_version||'');
     image.onerror=()=>cover.replaceChildren(videoNode('span','暂无封面 · 点击播放'));
-    cover.append(image);card.append(cover,videoNode('span',item.title,'video-card-title'),videoNode('span',bytes(item.size),'video-card-size'));
-    card.onclick=()=>openVideo(item);container.append(card);
+    const date=videoNode('time','发布日期：'+info.label,'video-card-date');if(info.day)date.setAttribute('datetime',info.day);
+    cover.append(image);card.append(cover,date,videoNode('span',info.title,'video-card-title'),videoNode('span',bytes(item.size),'video-card-size'));
+    card.onclick=()=>openVideo(item);grid.append(card);
+    }
   }
   const status=document.getElementById('videosStatus');status.className='status-line';
   status.textContent=matches.length?'显示 '+matches.length+' 部视频（目录最多返回最近 200 部）':query?'没有匹配的视频':'暂无可播放视频';

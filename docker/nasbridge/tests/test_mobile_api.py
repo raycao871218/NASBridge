@@ -58,6 +58,12 @@ class MobileApiTest(unittest.IsolatedAsyncioTestCase):
 
 
 class VideoApiTest(unittest.TestCase):
+    def test_publication_date_comes_from_valid_filename_not_file_mtime(self):
+        for name,expected in [('20261015-title.mp4','2026-10-15'),('20240229-title.mp4','2024-02-29'),('20260230-title.mp4',None),('sample.mp4',None)]:
+            path=MagicMock();path.stem=name[:-4];path.stat.return_value.st_size=100
+            with patch.object(mobile_api,'resolve_video',return_value=path),patch.object(mobile_api,'video_revision',return_value='v'):
+                self.assertEqual(mobile_api.describe_video('safe-id')['published_date'],expected)
+
     def test_only_indexed_files_and_ranges(self):
         import tempfile
         from pathlib import Path
