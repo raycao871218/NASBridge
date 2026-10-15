@@ -119,6 +119,8 @@
     .markdown-body table { display:block; max-width:100%; overflow:auto; border-collapse:collapse; }
     .markdown-body th,.markdown-body td { border:1px solid var(--line); padding:7px 10px; text-align:left; }
     .markdown-body a { color:var(--accent); }
+    .daily-stages { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:12px 24px; padding-left:22px; margin-bottom:0; }
+    .daily-stages li { padding:8px 0; overflow-wrap:anywhere; }
     @media(max-width:1080px) {
       main { grid-template-columns:190px minmax(0,1fr); column-gap:20px; padding:22px; }
       .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -301,6 +303,7 @@
       <p id="dailyTaskRunStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
     <section class="panel" id="latestUnreadSummary" hidden></section>
+    <section class="panel" id="dailyTaskProgressPanel" hidden aria-live="polite"></section>
     <section class="panel">
       <div class="panel-header"><div><h2>运行记录</h2><p class="muted small">来自 PostgreSQL 的最近 20 次任务执行。</p></div><button onclick="loadDailyTasks()">刷新记录</button></div>
       <p id="dailyTaskStatus" class="status-line" role="status" aria-live="polite">读取中…</p>
@@ -379,6 +382,7 @@
   </div>
 </dialog>
 <script src="/static/daily-task-control.js?v=20261015"></script>
+<script src="/static/daily-task-progress.js?v=20261015"></script>
 <script>
 let scheduleLoaded=false, scheduleDirty=false;
 const expandedDailySummaries=new Set();
@@ -633,7 +637,7 @@ function renderMarkdown(source){
   if(inCode)out.push('<pre><code>'+esc(codeLines.join('\n'))+'</code></pre>');flushParagraph();flushList();return '<div class="markdown-body">'+out.join('')+'</div>';
 }
 function dailyTaskStatusLabel(value){
-  const labels={success:'成功',failed:'失败',logging_failed:'记录失败',running:'运行中',not_run:'未运行',partial:'部分完成',skipped:'跳过'};
+  const labels={success:'成功',failed:'失败',logging_failed:'记录失败',running:'运行中',not_run:'未运行',partial:'部分完成',skipped:'跳过',pending:'待执行',interrupted:'已中断',timed_out:'已超时',unresponsive:'心跳异常',unknown:'状态待确认'};
   return labels[value]||value||'—';
 }
 function dailyTaskDate(value){
@@ -649,6 +653,7 @@ let showHiddenDailyRuns=false;
 async function dailyTaskAction(action,id){try{const r=await fetch("/api/daily-tasks/state",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,id})});const d=await r.json();if(!r.ok)throw new Error(d.detail||r.statusText);await loadDailyTasks();}catch(e){alert("更新失败："+(e.message||e));}}
 function toggleHiddenDailyRuns(){showHiddenDailyRuns=!showHiddenDailyRuns;loadDailyTasks();}
 function renderDailyTasks(data){
+  renderDailyTaskProgress(data);
   renderDailyTaskControl(data);
   rememberExpandedDailySummaries();
   const status=document.getElementById('dailyTaskStatus');
@@ -675,10 +680,10 @@ function renderDailyTasks(data){
   const hiddenCount=data.hidden_run_count||runs.filter(run=>run.hidden).length;
   const runsHost=document.getElementById('dailyTaskRuns');
   runsHost.innerHTML=(hiddenCount?'<p class="muted small">'+hiddenCount+' 条记录已隐藏。 <button onclick="toggleHiddenDailyRuns()">'+(showHiddenDailyRuns?'收起隐藏记录':'显示隐藏记录')+'</button></p>':'')+(visibleRuns.length?'<table><tr><th>日期 / 开始时间</th><th>总状态</th><th>媒体处理</th><th>概要生成</th><th>文件数（视频/原文/概要）</th><th>skill 更新</th><th>结果 / 错误</th><th>操作</th></tr>'+visibleRuns.map(run=>{
-    const duration=run.finished_at&&run.started_at?Math.max(0,Math.round((new Date(run.finished_at)-new Date(run.started_at))/1000))+' 秒':run.finished_at?'—':'进行中';
-    const stateClass=run.status==='success'?'ok':run.status==='failed'||run.status==='logging_failed'?'critical':'warning';
+    const duration=run.finished_at&&run.started_at?Math.max(0,Math.round((new Date(run.finished_at)-new Date(run.started_at))/1000))+' 秒':run.finished_at?'—':run.status==='running'?'进行中':'未记录结束时间';
+    const stateClass=run.status==='success'?'ok':['failed','logging_failed','interrupted','timed_out'].includes(run.status)?'critical':'warning';
     const message=run.error_message||run.run_summary||'—';
-    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
+    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+dailyTaskRunProgress(run)+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
   }).join('')+'</table>':'暂无运行记录。');
   const latest=data.latest_unread_summary;
   const notice=document.getElementById('latestUnreadSummary');

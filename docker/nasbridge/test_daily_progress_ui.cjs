@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const panel={};
+const ctx=vm.createContext({document:{getElementById:()=>panel,querySelectorAll:()=>[]},esc:v=>String(v??'').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),dailyTaskDate:String,dailyTaskStatusLabel:String});
+vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-progress.js','utf8'),ctx);
+const run={run_id:'run',status:'running',progress:{heartbeat_at:'now',last_progress_at:'earlier',current_stage:'download',stages:[{id:'discover',label:'发现视频',status:'success'},{id:'download',label:'下载合并',status:'running',message:'<script>bad</script>',item:'<video>',percent:42},{id:'transcribe',label:'转写',status:'pending'}]}};
+ctx.run=run;
+vm.runInContext('renderDailyTaskProgress({status:"ok",runs:[run]})',ctx);
+assert.match(panel.innerHTML,/当前阶段：下载合并/);assert.match(panel.innerHTML,/42%/);
+assert.match(panel.innerHTML,/&lt;script&gt;/);assert.ok(!panel.innerHTML.includes('<script>'));
+run.status='interrupted';vm.runInContext('renderDailyTaskProgress({status:"ok",runs:[run]})',ctx);
+assert.match(panel.innerHTML,/最近执行：interrupted/);assert.ok(!panel.innerHTML.includes('>running<'));
+run.status='unknown';vm.runInContext('renderDailyTaskProgress({status:"ok",runs:[run]})',ctx);assert.ok(!panel.innerHTML.includes('>running<'));
+vm.runInContext('renderDailyTaskProgress({status:"error",runs:[]})',ctx);assert.equal(panel.hidden,true);
+assert.match(vm.runInContext('dailyTaskProgressHtml({})',ctx),/旧版记录/);
+console.log('PASS: current/completed/pending stages, safe text, interrupted/unknown never shows running, errors and legacy records');

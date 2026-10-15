@@ -77,7 +77,7 @@ class ForcedCommandTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('forced_daily_control', path)
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
-        with patch.object(helper.subprocess, 'run') as run:
+        with patch.object(helper.subprocess, 'run') as run, patch.object(helper.Path,'read_text',return_value='test-boot'):
             self.assertFalse(helper.control('start; other command')['available'])
             run.assert_not_called()
             run.return_value.stdout = 'LoadState=loaded\nActiveState=activating\n'

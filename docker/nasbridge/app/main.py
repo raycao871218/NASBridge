@@ -1601,6 +1601,13 @@ def read_daily_task_data() -> dict[str, Any]:
     connection = None
     try:
         connection = postgres_connection("nasbridge-daily-task-panel")
+        from .daily_task_control import control_command
+        from .daily_task_progress import reconcile, display_run
+        try:
+            service=control_command('status')
+        except HTTPException:
+            service={'available': False}
+        reconcile(connection,service)
         local_today = datetime.now(ZoneInfo(LOCAL_TIMEZONE)).date()
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute("""
@@ -1609,24 +1616,24 @@ def read_daily_task_data() -> dict[str, Any]:
                     COUNT(*) FILTER (WHERE run_date = %s)::int AS today_runs,
                     COUNT(*) FILTER (WHERE run_date = %s AND status = 'success')::int AS today_success_runs,
                     COUNT(*) FILTER (WHERE status = 'success')::int AS success_runs,
-                    COUNT(*) FILTER (WHERE status IN ('failed', 'logging_failed'))::int AS failed_runs
+                    COUNT(*) FILTER (WHERE status IN ('failed', 'logging_failed','interrupted','timed_out'))::int AS failed_runs
                 FROM public.rhino_daily_runs
             """, (local_today, local_today))
             metrics = dict(cursor.fetchone())
             cursor.execute("""
-                SELECT run_id::text AS run_id, run_date::text AS run_date,
+                SELECT r.run_id::text AS run_id, run_date::text AS run_date,
                        started_at, finished_at, status, media_status, summary_status,
                        LEFT(error_message, 800) AS error_message,
                        LEFT(run_summary, 600) AS run_summary,
                        jsonb_array_length(video_files) AS video_count,
                        jsonb_array_length(transcript_files) AS transcript_count,
                        jsonb_array_length(summary_files) AS summary_count,
-                       skill_updated
-                FROM public.rhino_daily_runs
+                       skill_updated, p.progress
+                FROM public.rhino_daily_runs r LEFT JOIN public.rhino_daily_progress p USING(run_id)
                 ORDER BY started_at DESC
                 LIMIT 20
             """)
-            runs = [dict(row) for row in cursor.fetchall()]
+            runs = [display_run(row,service) for row in cursor.fetchall()]
             cursor.execute("""
                 SELECT summary_filename, video_id, source_url, transcript_filename,
                        updated_at, LEFT(summary_markdown, 8000) AS summary_markdown
@@ -1668,7 +1675,7 @@ def read_daily_task_data() -> dict[str, Any]:
             "status": "ok",
             "read_at": utc_now().isoformat(),
             "metrics": metrics,
-            "manual_control": manual_control_status(metrics),
+            "manual_control": manual_control_status(metrics,service),
             "runs": runs,
             "summaries": summaries,
             "latest_unread_summary": latest_today if latest_today and not latest_today["is_read"] else None,

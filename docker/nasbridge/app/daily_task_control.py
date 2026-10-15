@@ -28,12 +28,13 @@ def control_command(action):
         client.connect(hostname=settings['ssh_host'], port=int(settings.get('ssh_port', 22)),
                        username=settings.get('ssh_user', 'caobowen'), pkey=key,
                        look_for_keys=False, allow_agent=False, timeout=4, banner_timeout=4, auth_timeout=4)
-        _, stdout, _ = client.exec_command(action, timeout=12)
-        data = json.loads(stdout.read(4096))
+        stdin, stdout, stderr = client.exec_command(action, timeout=12)
+        data = json.loads(stdout.read(65536))
         if stdout.channel.recv_exit_status() or not isinstance(data, dict) or not data.get('available'):
             raise ValueError('Controller unavailable')
         if data.get('active_state') not in BUSY_STATES | {'inactive', 'failed'}:
             raise ValueError('Unknown service state')
+        stdin.close();stdout.close();stderr.close()
         return data
     except Exception:
         # Errors can contain private hostnames and key paths.
@@ -42,11 +43,13 @@ def control_command(action):
         client.close()
 
 
-def manual_control_status(metrics):
+def manual_control_status(metrics, service=None):
     if metrics.get('today_success_runs', 0):
         return {'show': False, 'can_trigger': False, 'message': '今天的任务已成功'}
     try:
-        data = control_command('status')
+        data = service if service is not None else control_command('status')
+        if not data.get('available', True):
+            raise HTTPException(503, '无法确认执行端状态，请稍后刷新')
         running = data['active_state'] in BUSY_STATES
         return {'show': True, 'can_trigger': not running, 'running': running,
                 'message': '任务正在执行，请等待运行结果' if running else '今天还没有成功记录，可手动执行一次每日任务'}
