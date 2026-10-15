@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NASBridge</title>
+  <link rel="stylesheet" href="/static/videos.css?v=20261015">
     <style>
     :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -173,12 +174,30 @@
   <nav class="view-tabs" role="tablist" aria-label="功能模块">
     <button class="view-tab active" role="tab" aria-selected="true" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="rhinoView" onclick="switchView('rhinoView',this)">每日任务</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="videosView" onclick="switchView('videosView',this)">视频</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="opsView" onclick="switchView('opsView',this)">证书与反向代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="aliyunView" onclick="switchView('aliyunView',this)">阿里云安全组</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="smsView" onclick="switchView('smsView',this)">短信</button>
   </nav>
 
+  <section id="videosView" class="view">
+    <div class="section-heading"><div><h2>视频</h2><p>浏览犀牛哥视频，选择封面即可播放。</p></div><button id="videosRefresh" type="button">刷新</button></div>
+    <section id="videoPlayerPanel" class="panel" hidden>
+      <div class="panel-header"><h3 id="videoTitle"></h3><button id="videoClose" type="button">关闭播放</button></div>
+      <video id="videoPlayer" controls playsinline preload="metadata" aria-label="视频播放器"></video>
+      <div class="toolbar video-controls">
+        <button id="videoBack" type="button">后退 10 秒</button><button id="videoForward" type="button">前进 10 秒</button>
+        <label for="videoSpeed">播放速度</label><select id="videoSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+      </div>
+      <p id="videoPlaybackStatus" class="status-line" role="status"></p>
+    </section>
+    <section class="panel">
+      <label class="field">搜索视频标题<input id="videosQuery" type="search" placeholder="输入标题关键词" maxlength="200"></label>
+      <p id="videosStatus" class="status-line" role="status">进入后加载视频</p>
+      <div id="videoItems" class="video-grid"></div>
+    </section>
+  </section>
   <section id="smsView" class="view">
     <div class="section-heading"><div><h2>短信</h2><p>查看手机转存的短信，按发送时间从新到旧排列。</p></div><button id="smsRefresh">刷新</button></div>
     <section class="panel">
@@ -363,9 +382,10 @@ const mode = m => `<span class="${esc(m)}">${({proxy:'代理',direct:'直连',mi
 function switchView(id, button, autoLoad=true){
   const target=document.getElementById(id);if(!target||!target.classList.contains('view'))return;
   const activeTab=button||document.querySelector(`.view-tab[data-view-target="${CSS.escape(id)}"]`);
+  if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
-  if(autoLoad){if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
+  if(autoLoad){if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }
 function toggleCustomDays(){ const mode=document.getElementById('scheduleMode').value; document.getElementById('customDays').style.display=mode==='custom'?'flex':'none'; document.getElementById('monthDayField').hidden=mode!=='monthly'; }
@@ -675,6 +695,7 @@ toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
 <script src="/static/sms.js?v=20261014"></script>
+<script src="/static/videos.js?v=20261015"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>
