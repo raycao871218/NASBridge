@@ -53,6 +53,8 @@ from .zerotier import router as zerotier_router
 app.include_router(zerotier_router)
 from .mobile_api import router as mobile_router
 app.include_router(mobile_router)
+from .daily_task_control import router as daily_task_control_router, manual_control_status
+app.include_router(daily_task_control_router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 certificate_sync_lock = asyncio.Lock()
 scheduler_task: asyncio.Task[None] | None = None
@@ -1599,16 +1601,17 @@ def read_daily_task_data() -> dict[str, Any]:
     connection = None
     try:
         connection = postgres_connection("nasbridge-daily-task-panel")
-
+        local_today = datetime.now(ZoneInfo(LOCAL_TIMEZONE)).date()
         with connection.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute("""
                 SELECT
                     COUNT(*)::int AS total_runs,
-                    COUNT(*) FILTER (WHERE run_date = CURRENT_DATE)::int AS today_runs,
+                    COUNT(*) FILTER (WHERE run_date = %s)::int AS today_runs,
+                    COUNT(*) FILTER (WHERE run_date = %s AND status = 'success')::int AS today_success_runs,
                     COUNT(*) FILTER (WHERE status = 'success')::int AS success_runs,
                     COUNT(*) FILTER (WHERE status IN ('failed', 'logging_failed'))::int AS failed_runs
                 FROM public.rhino_daily_runs
-            """)
+            """, (local_today, local_today))
             metrics = dict(cursor.fetchone())
             cursor.execute("""
                 SELECT run_id::text AS run_id, run_date::text AS run_date,
@@ -1665,6 +1668,7 @@ def read_daily_task_data() -> dict[str, Any]:
             "status": "ok",
             "read_at": utc_now().isoformat(),
             "metrics": metrics,
+            "manual_control": manual_control_status(metrics),
             "runs": runs,
             "summaries": summaries,
             "latest_unread_summary": latest_today if latest_today and not latest_today["is_read"] else None,

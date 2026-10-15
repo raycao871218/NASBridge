@@ -8,6 +8,7 @@
 - 每日任务记录、文章全文、已读状态、犀牛哥视频列表、缩略图与 HTTP Range 播放接口。
 - 短信归档：分页、搜索、展开全文和验证码复制。
 - 视频 Tab：封面列表、标题搜索、在线播放、倍速、前后跳转与浏览器原生全屏；切换 Tab 自动暂停。列表展示接口返回的最近最多 200 部视频，播放编码支持取决于浏览器。
+- 每日任务手动执行：今天没有成功记录时提供入口，运行中禁止重复启动；连接设置见 [执行端配置](ops/DAILY_TASK_CONTROL.md)。
 
 Android App 单独维护，通过这些 HTTP API 访问本服务；本目录不包含 Android 工程，也不包含推送服务。
 
@@ -83,6 +84,7 @@ docker compose -f compose.yaml build && \
 docker run --rm --network none \
   -e NASBRIDGE_CONFIG=/app/config/config.yaml.example \
   -v "$PWD/tests:/app/tests:ro" \
+  -v "$PWD/ops:/app/ops:ro" \
   nasbridge:local python -m unittest discover -s tests -p 'test_*.py' -v && \
 docker compose -f compose.yaml up -d
 ```
@@ -118,11 +120,13 @@ docker compose -f compose.yaml logs --tail=100 nasbridge
 docker run --rm --network none \
   -e NASBRIDGE_CONFIG=/app/config/config.yaml.example \
   -v "$PWD/tests:/app/tests:ro" \
+  -v "$PWD/ops:/app/ops:ro" \
   nasbridge:local python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 测试通过 mock 或临时目录验证 API，不应写入真实短信、文章已读状态或云资源。阿里云前端逻辑测试仅使用 Node.js 内置模块，可执行 `node test_aliyun_ui.cjs`。
 视频前端测试同样无需依赖或生产连接：`node test_videos_ui.cjs`。
+每日任务前端测试：`node test_daily_task_ui.cjs`。
 
 ## 配置与访问边界
 

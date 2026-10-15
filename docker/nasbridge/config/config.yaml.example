@@ -15,6 +15,13 @@ applications:
     process_contains: ["qbittorrent"]
     qbt_config: "/host/qbittorrent/qBittorrent.conf"
 
+# Optional: restricted SSH forced-command key for the existing daily service.
+# See ops/DAILY_TASK_CONTROL.md. Keep real host/key values in local config only.
+# daily_task_control:
+#   ssh_host: "192.0.2.20"
+#   ssh_user: "task-user"
+#   ssh_key_path: "/app/config/daily-task-id_ed25519"
+#   ssh_known_hosts: "/app/config/daily-task-known_hosts"
 certificates:
   local:
     - id: nas_cert

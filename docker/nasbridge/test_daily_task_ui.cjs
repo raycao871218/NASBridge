@@ -1,0 +1,21 @@
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+const nodes=Object.fromEntries(['dailyTaskRun','dailyTaskManual','dailyTaskManualHint','dailyTaskRunStatus'].map(id=>[id,{}]));
+let calls=0,resolveRequest;
+const ctx=vm.createContext({document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;return new Promise(resolve=>{resolveRequest=resolve;});},loadDailyTasks:async()=>{vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:false,running:true}})',ctx);}});
+vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-control.js','utf8'),ctx);
+(async()=>{
+  vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:false,can_trigger:false}})',ctx);
+  assert.equal(nodes.dailyTaskManual.hidden,true);
+  vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:false,running:true}})',ctx);
+  assert.equal(nodes.dailyTaskRun.disabled,true);assert.equal(nodes.dailyTaskRun.textContent,'执行中…');
+  vm.runInContext('renderDailyTaskControl({status:"error"})',ctx);assert.equal(nodes.dailyTaskManual.hidden,true);
+  vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
+  const first=vm.runInContext('triggerDailyTask()',ctx);await vm.runInContext('triggerDailyTask()',ctx);
+  assert.equal(calls,1);assert.equal(nodes.dailyTaskRun.disabled,true);
+  resolveRequest({ok:true,json:async()=>({message:'已提交每日任务'})});await first;
+  assert.equal(nodes.dailyTaskRunStatus.textContent,'已提交每日任务');assert.equal(nodes.dailyTaskRun.disabled,true);
+  vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
+  const failed=vm.runInContext('triggerDailyTask()',ctx);resolveRequest({ok:false,json:async()=>({detail:'任务正在执行'})});await failed;
+  assert.match(nodes.dailyTaskRunStatus.textContent,/任务正在执行/);assert.equal(nodes.dailyTaskRun.disabled,true);
+  console.log('PASS: success hides control, busy/error disables, duplicate click prevented, accepted/conflict refreshed');
+})().catch(error=>{console.error(error);process.exitCode=1;});
