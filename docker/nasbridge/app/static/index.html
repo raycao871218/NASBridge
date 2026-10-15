@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NASBridge</title>
+  <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015">
     <style>
     :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
@@ -399,8 +400,8 @@ function applySchedule(s){
 }
 function renderSchedule(s){
   if(!scheduleLoaded && !scheduleDirty) applySchedule(s);
-  const next=s.next_run?new Date(s.next_run).toLocaleString('zh-CN'):'未启用';
-  const last=s.last_run_at?new Date(s.last_run_at).toLocaleString('zh-CN'):'尚未执行';
+  const next=s.next_run?formatPanelDate(s.next_run):'未启用';
+  const last=s.last_run_at?formatPanelDate(s.last_run_at):'尚未执行';
   const result=s.last_result==='success'?'成功':s.last_result==='failed'?'失败': '—';
   document.getElementById('scheduleSummary').innerHTML=`当前计划：<b>${esc(s.description||'未设置')}</b>　cron：<code>${esc(s.cron||'-')}</code><br>下次执行：${esc(next)}　上次执行：${esc(last)}（${result}）${s.last_error?`<br><span class="error">${esc(s.last_error)}</span>`:''}`;
 }
@@ -421,7 +422,7 @@ function proxyDomainMatches(pattern,hostname){
 function renderProxyCertificateOptions(items){
   reverseProxyCertificates=items;const select=document.getElementById('proxyCertificate');const previous=select.value;
   const stateName={valid:'有效',expiring:'即将到期',expired:'已过期',unavailable:'不可用'};
-  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?new Date(c.expires_at).toLocaleString('zh-CN'):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
+  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
   select.innerHTML='<option value="">按域名自动匹配</option>'+items.map(c=>`<option value="${esc(c.id)}" ${c.available?'':'disabled'}>${esc(c.name)}（${esc((c.domains||[]).join(', ')||'域名未识别')}；${esc(stateName[c.status]||c.status)}${c.expires_at?'；到期 '+esc(c.expires_at.slice(0,10)):''}；${esc(c.source||'')}</option>`).join('');
   if(items.some(c=>c.id===previous))select.value=previous;updateProxyCertificateHint();
 }
@@ -559,7 +560,7 @@ function render(data) {
   stateNode.className=containerState==='running'?'ok':containerState==='unavailable'?'error':'warning';
   const details=[];
   if(container.image) details.push(`镜像 ${container.image}`);
-  if(container.started_at&&container.started_at!=='0001-01-01T00:00:00Z') details.push(`启动时间 ${container.started_at}`);
+  if(container.started_at&&container.started_at!=='0001-01-01T00:00:00Z') details.push(`启动时间 ${formatPanelDate(container.started_at)}`);
   if(container.restart_count!=null) details.push(`自动重启 ${container.restart_count} 次`);
   if(container.error) details.push(container.error);
   document.getElementById('mihomoContainerDetail').textContent=details.join(' · ');
@@ -576,13 +577,13 @@ function render(data) {
   if(m.error) document.getElementById('metrics').innerHTML += `<div class="panel error">${esc(m.error)}</div>`;
   const apps=data.applications||[];
   const registry=data.application_registry||{};
-  document.getElementById('apps').innerHTML = apps.length ? `<div class="muted small">应用识别：实时活动连接 + 配置应用${registry.source==='saved_scan'?'；已保存扫描记录用于辅助匹配':''}${registry.scanned_at?`；上次扫描：${esc(new Date(registry.scanned_at).toLocaleString('zh-CN'))}`:''}</div><table><tr><th>应用</th><th>配置模式</th><th>当前观测</th><th>连接数</th><th>累计下载/上传</th><th>说明</th></tr>${apps.map(a=>`<tr><td>${esc(a.name)}</td><td>${mode(a.expected_mode)}</td><td>${mode(a.observed_mode)}</td><td>${a.active_connections}</td><td>${bytes(a.download)} / ${bytes(a.upload)}</td><td>${esc(a.qbt_proxy ? `qBittorrent代理：${a.qbt_proxy.configured?'已配置':'未配置'} ${a.qbt_proxy.host||''}:${a.qbt_proxy.port||''}` : (a.note||''))}</td></tr>`).join('')}</table>` : '未配置应用。';
+  document.getElementById('apps').innerHTML = apps.length ? `<div class="muted small">应用识别：实时活动连接 + 配置应用${registry.source==='saved_scan'?'；已保存扫描记录用于辅助匹配':''}${registry.scanned_at?`；上次扫描：${esc(formatPanelDate(registry.scanned_at))}`:''}</div><table><tr><th>应用</th><th>配置模式</th><th>当前观测</th><th>连接数</th><th>累计下载/上传</th><th>说明</th></tr>${apps.map(a=>`<tr><td>${esc(a.name)}</td><td>${mode(a.expected_mode)}</td><td>${mode(a.observed_mode)}</td><td>${a.active_connections}</td><td>${bytes(a.download)} / ${bytes(a.upload)}</td><td>${esc(a.qbt_proxy ? `qBittorrent代理：${a.qbt_proxy.configured?'已配置':'未配置'} ${a.qbt_proxy.host||''}:${a.qbt_proxy.port||''}` : (a.note||''))}</td></tr>`).join('')}</table>` : '未配置应用。';
   const conns=m.connections||[];
   document.getElementById('connections').innerHTML = conns.length ? `<table><tr><th>路由</th><th>来源</th><th>目标</th><th>链路</th><th>规则</th><th>流量</th></tr>${conns.map(c=>`<tr><td>${mode(c.route)}</td><td><code>${esc(c.source_ip)}:${esc(c.source_port)}</code><br><span class="muted small">${esc(c.process)}</span></td><td>${esc(c.host)}:${esc(c.destination_port)}</td><td>${esc((c.chains||[]).join(' → '))}</td><td>${esc(c.rule)}</td><td>${bytes(c.download)} ↓<br>${bytes(c.upload)} ↑</td></tr>`).join('')}</table>` : '当前没有活动连接。';
   const certs=data.certificates||[];
-  document.getElementById('certs').innerHTML = certs.length ? `<table><tr><th>证书</th><th>类型</th><th>状态</th><th>到期时间</th><th>剩余</th><th>一致性/操作</th></tr>${certs.map(c=>{ const match=c.kind==='remote' ? (c.matches_local===true?'与本地一致':c.matches_local===false?'<span class="critical">与本地不一致</span>':'无法比较') : ''; const action=`${c.kind==='remote'&&c.sync_enabled ? `<button class="cell-action" onclick='syncCert(${JSON.stringify(c.id)})'>同步本地证书</button>` : ''}${c.status==='expired' ? `<button class="cell-action danger" onclick='deleteExpiredCert(${JSON.stringify(c.id)},${JSON.stringify(c.name)})'>删除过期记录</button>` : ''}`; const check=c.verified===true?'TLS验证通过':c.verified===false?'TLS验证失败':esc(c.error||'本地证书已读取'); return `<tr><td>${esc(c.name)}<br><span class="muted small">${esc(c.domain||c.path||`${c.host}:${c.port}`)}</span></td><td>${c.kind==='local'?'NAS本地':'远端服务器'}</td><td class="${esc(c.status)}">${esc(c.status)}</td><td>${esc(c.expires_at||'-')}</td><td>${c.days_left==null?'-':`${c.days_left} 天`}</td><td>${match}<br>${check}${action}</td></tr>`; }).join('')}</table>` : '未配置证书。';
+  document.getElementById('certs').innerHTML = certs.length ? `<table><tr><th>证书</th><th>类型</th><th>状态</th><th>到期时间</th><th>剩余</th><th>一致性/操作</th></tr>${certs.map(c=>{ const match=c.kind==='remote' ? (c.matches_local===true?'与本地一致':c.matches_local===false?'<span class="critical">与本地不一致</span>':'无法比较') : ''; const action=`${c.kind==='remote'&&c.sync_enabled ? `<button class="cell-action" onclick='syncCert(${JSON.stringify(c.id)})'>同步本地证书</button>` : ''}${c.status==='expired' ? `<button class="cell-action danger" onclick='deleteExpiredCert(${JSON.stringify(c.id)},${JSON.stringify(c.name)})'>删除过期记录</button>` : ''}`; const check=c.verified===true?'TLS验证通过':c.verified===false?'TLS验证失败':esc(c.error||'本地证书已读取'); return `<tr><td>${esc(c.name)}<br><span class="muted small">${esc(c.domain||c.path||`${c.host}:${c.port}`)}</span></td><td>${c.kind==='local'?'NAS本地':'远端服务器'}</td><td class="${esc(c.status)}">${esc(c.status)}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'-')}</td><td>${c.days_left==null?'-':`${c.days_left} 天`}</td><td>${match}<br>${check}${action}</td></tr>`; }).join('')}</table>` : '未配置证书。';
   renderSchedule(data.schedule||{});
-  document.getElementById('footer').textContent=`最后更新：${data.generated_at||''}`;
+  document.getElementById('footer').textContent=`最后更新：${formatPanelDate(data.generated_at)}`;
 }
 async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 NASBridge 配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 NASBridge 证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
 async function scanApplications(){ const status=document.getElementById('appScanStatus'); status.textContent='扫描中…'; try { const r=await fetch('/api/applications/scan',{method:'POST'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已记录 ${data.applications.length} 个应用，发现 ${data.connections_seen} 条连接`; await load(); } catch(e) { status.textContent=`扫描失败：${e.message||e}`; } }
@@ -631,8 +632,7 @@ function dailyTaskStatusLabel(value){
   return labels[value]||value||'—';
 }
 function dailyTaskDate(value){
-  if(!value)return '—';
-  const date=new Date(value);return Number.isNaN(date.getTime())?esc(value):date.toLocaleString('zh-CN');
+  return formatPanelDate(value);
 }
 function rememberExpandedDailySummaries(){
   document.querySelectorAll('#dailyTaskSummaries details[data-summary-key]').forEach(detail=>{
@@ -672,7 +672,7 @@ function renderDailyTasks(data){
     const duration=run.finished_at&&run.started_at?Math.max(0,Math.round((new Date(run.finished_at)-new Date(run.started_at))/1000))+' 秒':run.finished_at?'—':'进行中';
     const stateClass=run.status==='success'?'ok':run.status==='failed'||run.status==='logging_failed'?'critical':'warning';
     const message=run.error_message||run.run_summary||'—';
-    return '<tr><td>'+esc(run.run_date)+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
+    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
   }).join('')+'</table>':'暂无运行记录。');
   const latest=data.latest_unread_summary;
   const notice=document.getElementById('latestUnreadSummary');
@@ -694,7 +694,7 @@ async function load(){ try { const r=await fetch('/api/overview',{cache:'no-stor
 toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
-<script src="/static/sms.js?v=20261014"></script>
+<script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261009-defaults"></script>

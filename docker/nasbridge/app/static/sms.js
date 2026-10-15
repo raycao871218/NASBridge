@@ -1,7 +1,7 @@
 // SMS contents are inserted only as text; never render message bodies as HTML.
 let smsOffset=0,smsQuery='',smsRequest=0,smsAbort=null;
 function smsNode(tag,value,cls){const e=document.createElement(tag);if(value!=null)e.textContent=value;if(cls)e.className=cls;return e;}
-function smsDate(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString('zh-CN',{hour12:false});}
+function smsDate(value){return formatPanelDate(value);}
 async function copySmsCode(code,button){
   try{
     if(navigator.clipboard && window.isSecureContext)await navigator.clipboard.writeText(code);
