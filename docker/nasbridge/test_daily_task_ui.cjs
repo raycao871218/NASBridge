@@ -5,10 +5,11 @@ const ctx=vm.createContext({document:{getElementById:id=>nodes[id]},fetch:()=>{c
 vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-control.js','utf8'),ctx);
 (async()=>{
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:false,can_trigger:false}})',ctx);
-  assert.equal(nodes.dailyTaskManual.hidden,true);
+  assert.equal(nodes.dailyTaskManual.hidden,false);assert.equal(nodes.dailyTaskRun.disabled,true);
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:false,running:true}})',ctx);
   assert.equal(nodes.dailyTaskRun.disabled,true);assert.equal(nodes.dailyTaskRun.textContent,'执行中…');
-  vm.runInContext('renderDailyTaskControl({status:"error"})',ctx);assert.equal(nodes.dailyTaskManual.hidden,true);
+  vm.runInContext('renderDailyTaskControl({status:"error"})',ctx);assert.equal(nodes.dailyTaskManual.hidden,false);assert.equal(nodes.dailyTaskRun.disabled,true);
+  assert.match(nodes.dailyTaskManualHint.textContent,/读取失败/);
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
   const first=vm.runInContext('triggerDailyTask()',ctx);await vm.runInContext('triggerDailyTask()',ctx);
   assert.equal(calls,1);assert.equal(nodes.dailyTaskRun.disabled,true);
@@ -17,5 +18,5 @@ vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-control.js','u
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
   const failed=vm.runInContext('triggerDailyTask()',ctx);resolveRequest({ok:false,json:async()=>({detail:'任务正在执行'})});await failed;
   assert.match(nodes.dailyTaskRunStatus.textContent,/任务正在执行/);assert.equal(nodes.dailyTaskRun.disabled,true);
-  console.log('PASS: success hides control, busy/error disables, duplicate click prevented, accepted/conflict refreshed');
+  console.log('PASS: control stays visible, busy/error disables, duplicate click prevented, accepted/conflict refreshed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,7 +1,5 @@
 """Start the existing daily systemd service through a restricted SSH key."""
 import json
-from datetime import datetime
-from zoneinfo import ZoneInfo
 from urllib.parse import urlsplit
 
 import paramiko
@@ -44,21 +42,21 @@ def control_command(action):
 
 
 def manual_control_status(metrics, service=None):
-    if metrics.get('today_success_runs', 0):
-        return {'show': False, 'can_trigger': False, 'message': '今天的任务已成功'}
     try:
         data = service if service is not None else control_command('status')
         if not data.get('available', True):
             raise HTTPException(503, '无法确认执行端状态，请稍后刷新')
         running = data['active_state'] in BUSY_STATES
         return {'show': True, 'can_trigger': not running, 'running': running,
-                'message': '任务正在执行，请等待运行结果' if running else '今天还没有成功记录，可手动执行一次每日任务'}
+                'message': '任务正在执行，请等待运行结果' if running else (
+                    '今天的任务已成功，可再次手动执行' if metrics.get('today_success_runs', 0)
+                    else '今天还没有成功记录，可手动执行一次每日任务')}
     except HTTPException as error:
         return {'show': True, 'can_trigger': False, 'message': error.detail}
 
 
 def start_daily_task():
-    from .main import postgres_connection, LOCAL_TIMEZONE
+    from .main import postgres_connection
     connection = None
     try:
         connection = postgres_connection('nasbridge-daily-task-trigger')
@@ -69,10 +67,6 @@ def start_daily_task():
                 cursor.execute('SELECT pg_try_advisory_xact_lock(731915001)')
                 if not cursor.fetchone()[0]:
                     raise HTTPException(409, '已有手动请求正在处理，请刷新记录')
-                today = datetime.now(ZoneInfo(LOCAL_TIMEZONE)).date()
-                cursor.execute("SELECT COUNT(*) FROM public.rhino_daily_runs WHERE run_date = %s AND status = 'success'", (today,))
-                if cursor.fetchone()[0]:
-                    raise HTTPException(409, '今天已有成功记录，无需重复执行')
                 result = control_command('start')
                 if not result.get('accepted'):
                     raise HTTPException(409, '任务正在执行，请等待运行结果')

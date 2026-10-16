@@ -22,25 +22,24 @@ class DailyTaskControlTest(unittest.TestCase):
         self.db.stop()
 
     def test_start_and_connection_closed(self):
-        self.cursor.fetchone.side_effect = [(True,), (0,)]
+        self.cursor.fetchone.side_effect = [(True,)]
         with patch.object(control, 'control_command', return_value={'accepted': True}) as remote:
             response = self.client.post('/api/daily-tasks/run', json={})
         self.assertEqual(response.status_code, 202)
         remote.assert_called_once_with('start')
-        self.assertIn('run_date = %s', self.cursor.execute.call_args.args[0])
-        self.assertEqual(len(self.cursor.execute.call_args.args[1]), 1)
+        self.assertIn('pg_try_advisory_xact_lock', self.cursor.execute.call_args.args[0])
         self.connection.close.assert_called_once()
 
-    def test_success_hidden_or_outside_recent_page_still_blocks(self):
-        self.cursor.fetchone.side_effect = [(True,), (1,)]
-        with patch.object(control, 'control_command') as remote:
+    def test_rerun_does_not_gate_on_previous_success(self):
+        self.cursor.fetchone.side_effect = [(True,)]
+        with patch.object(control, 'control_command', return_value={'accepted': True}) as remote:
             response = self.client.post('/api/daily-tasks/run', json={})
-        self.assertEqual(response.status_code, 409)
-        remote.assert_not_called()
-        self.assertNotIn('LIMIT', self.cursor.execute.call_args.args[0])
+        self.assertEqual(response.status_code, 202)
+        remote.assert_called_once_with('start')
+        self.assertFalse(any('rhino_daily_runs' in call.args[0] for call in self.cursor.execute.call_args_list))
 
     def test_busy_request_or_running_service_blocks(self):
-        for rows in [[(False,)], [(True,), (0,)]]:
+        for rows in [[(False,)], [(True,)]]:
             self.cursor.fetchone.side_effect = rows
             with patch.object(control, 'control_command', return_value={'accepted': False}):
                 self.assertEqual(self.client.post('/api/daily-tasks/run', json={}).status_code, 409)
@@ -61,12 +60,12 @@ class DailyTaskControlTest(unittest.TestCase):
         main.postgres_connection.assert_not_called()
 
     def test_controls_success_running_idle_and_disconnected(self):
-        with patch.object(control, 'control_command') as remote:
-            self.assertFalse(control.manual_control_status({'today_success_runs': 1})['show'])
-            remote.assert_not_called()
         for state, can_trigger in [('activating', False), ('active', False), ('deactivating', False), ('inactive', True), ('failed', True)]:
             with patch.object(control, 'control_command', return_value={'active_state': state}):
-                self.assertEqual(control.manual_control_status({})['can_trigger'], can_trigger)
+                for successes in [0, 1]:
+                    status = control.manual_control_status({'today_success_runs': successes})
+                    self.assertTrue(status['show'])
+                    self.assertEqual(status['can_trigger'], can_trigger)
         with patch.object(control, 'control_command', side_effect=HTTPException(503, '不可用')):
             self.assertFalse(control.manual_control_status({})['can_trigger'])
 
