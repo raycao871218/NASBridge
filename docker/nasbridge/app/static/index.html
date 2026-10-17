@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>NASBridge</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
     <style>
@@ -166,11 +167,24 @@
       table { min-width:640px; }
     }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
-    .geofence-layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
+    .geofence-layout { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(300px,1fr); gap:16px; align-items:start; }
     .geofence-layout h3 { margin:0; }
     .geofence-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:20px; }
     .geofence-rules { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; }
-    #geoMap { width:100%; min-height:310px; margin:12px 0; }
+    #geoMap { width:100%; height:550px; margin:16px 0 10px; border-radius:10px; z-index:0; background:var(--surface-3); }
+    .geo-search { display:flex; align-items:flex-end; gap:10px; } .geo-search label { flex:1; }
+    .geo-search-results:empty { display:none; } .geo-search-results { display:grid; gap:6px; margin-top:10px; }
+    .geo-search-results button { white-space:normal; text-align:left; justify-content:flex-start; font-weight:400; }
+    .geo-map-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .geo-map-actions span { overflow-wrap:anywhere; }
+    .geo-radius-header { display:flex; justify-content:space-between; align-items:center; margin-top:24px; }
+    #geoRadiusSlider { width:100%; margin:16px 0; accent-color:var(--blue); min-height:28px; }
+    .geo-radius-presets { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 20px; }
+    .geo-radius-presets button { padding:5px 11px; min-height:32px; }
+    .geo-advanced { border-top:1px solid var(--line); margin-top:18px; padding-top:18px; }
+    .geo-center-icon { background:var(--blue); border:3px solid var(--surface); border-radius:50%; box-shadow:0 0 0 2px var(--blue),0 3px 8px #0005; }
+    #geoMap .leaflet-control-attribution { font-size:10px; } #geoMap .leaflet-control-attribution a { color:#265785; }
+    @media(max-width:600px) { #geoMap { height:420px; } }
     #geoMap svg { display:block; }
     @media(max-width:1100px) { .geofence-layout { grid-template-columns:1fr; } .geofence-rules { grid-template-columns:1fr 1fr; } }
     @media(max-width:430px) { .geofence-fields { grid-template-columns:1fr; } }
@@ -211,45 +225,55 @@
     </section>
   </section>
   <section id="geofenceView" class="view">
-    <div class="section-heading"><div><h2>地理围栏</h2><p>集中配置检测范围和时间规则，由手机读取并判断在家状态。</p></div><button id="geoReload" type="button">重新读取</button></div>
+    <div class="section-heading"><div><h2>地理围栏</h2><p>在地图上选一个点，设定你希望覆盖的半径。</p></div><button id="geoReload" type="button">重新读取</button></div>
     <p id="geoStatus" class="status-line" role="status">进入后加载配置</p>
     <div class="geofence-layout">
       <section class="panel geofence-map-panel">
-        <div class="panel-header"><div><h3>北川羌族自治县</h3><p class="muted small">全县范围 · 四川省绵阳市 · 北向上</p></div><span class="proxy-badge">县域围栏</span></div>
-        <div id="geoMap" role="img" aria-label="北川县及绵阳周边县域地图"><p class="muted">正在读取边界…</p></div>
-        <p class="small muted">高亮区域为县域近似边界，不是以新县城为中心的圆形范围。边界附近结合缓冲距离及定位精度判断。</p>
-        <p class="small muted" style="margin-top:8px">边界来源：<a href="https://geo.datav.aliyun.com/areas_v3/bound/510700_full.json" target="_blank" rel="noopener">阿里云 DataV 行政区划数据</a> · GCJ-02</p>
+        <form id="geoSearchForm" class="geo-search"><label class="field" for="geoSearch">搜索地点<input id="geoSearch" type="search" placeholder="例如：北川永昌镇、绵阳火车站" minlength="2" maxlength="120" autocomplete="off" required></label><button id="geoSearchButton" class="primary" type="submit">搜索</button></form>
+        <p id="geoSearchStatus" class="status-line" role="status"></p>
+        <div id="geoSearchResults" class="geo-search-results" aria-label="搜索结果"></div>
+        <div id="geoMap" aria-label="围栏选点地图"></div>
+        <p id="geoMapStatus" class="status-line" role="status">点击地图选点，拖动中心标记可微调位置。</p>
+        <div class="geo-map-actions"><button id="geoLocate" type="button">定位到我的位置</button><button id="geoFit" type="button">查看整个围栏</button><span id="geoCoordinates" class="muted small">尚未选择中心点</span></div>
+        <p class="muted small" style="margin-top:12px">可通过搜索、地图选点或下方经纬度定位。地图与地名搜索使用在线地图服务；浏览器定位需要 HTTPS，并由你授权。</p>
       </section>
       <section class="panel">
         <form id="geoForm">
-          <div class="panel-header"><h3>检测规则</h3><span id="geoRevision" class="muted small">尚未读取</span></div>
+          <div class="panel-header"><h3>圆形围栏</h3><span id="geoRevision" class="muted small">尚未读取</span></div>
           <fieldset id="geoFields" disabled style="border:0;padding:0;margin:0;min-width:0">
-            <label class="check"><input id="geoEnabled" type="checkbox">启用地理围栏检测</label>
-            <p class="muted small">手机使用内网时立即在家；切到外网后，按下方周期进行位置检测。</p>
-            <div class="geofence-fields">
-              <label class="field">检测间隔（分钟）<input id="geoInterval" type="number" min="1" max="1440" step="1" required value="60"></label>
-              <label class="field">最长检测时长（小时）<input id="geoDuration" type="number" min="0.0166666667" max="168" step="any" required value="4"></label>
-              <label class="field">边界缓冲距离（米）<input id="geoBuffer" type="number" min="0" max="10000" step="1" required value="1000"></label>
-              <label class="field">可接受定位精度（米）<input id="geoAccuracy" type="number" min="100" max="10000" step="1" required value="3000"></label>
-              <label class="field">位置有效期（分钟）<input id="geoAge" type="number" min="1" max="60" step="1" required value="15"></label>
-            </div>
-            <label class="check" style="margin-top:14px"><input id="geoTest" type="checkbox">测试模式：每 15 秒检测，最长 1 分钟</label>
-            <p class="muted small">测试模式临时缩短时间，不覆盖正式周期。正常模式下，首次检测在一个周期后开始。</p>
-            <div class="action-row"><span id="geoDirty" class="muted small">尚未修改</span><button id="geoSave" class="primary" type="submit">保存配置</button></div>
+            <label class="field">围栏名称<input id="geoName" type="text" maxlength="100" required value="我的围栏" placeholder="例如：家附近、北川生活圈"></label>
+            <div class="geo-radius-header"><label for="geoRadius">覆盖半径</label><strong id="geoRadiusLabel">10 公里</strong></div>
+            <input id="geoRadiusSlider" type="range" min="100" max="100000" step="100" value="10000" aria-label="调整围栏半径">
+            <label class="field">精确半径（米）<input id="geoRadius" type="number" min="100" max="500000" step="1" value="10000" required></label>
+            <div class="geo-radius-presets" aria-label="常用半径"><button type="button" data-geo-radius="1000">1 km</button><button type="button" data-geo-radius="5000">5 km</button><button type="button" data-geo-radius="10000">10 km</button><button type="button" data-geo-radius="30000">30 km</button></div>
+            <label class="check"><input id="geoEnabled" type="checkbox">启用这个围栏</label>
+            <details class="geo-advanced"><summary>中心坐标与检测规则</summary>
+              <div class="geofence-fields">
+                <label class="field">中心纬度（WGS-84）<input id="geoLatitude" type="number" min="-85" max="85" step="any" placeholder="在地图上选点"></label>
+                <label class="field">中心经度（WGS-84）<input id="geoLongitude" type="number" min="-180" max="180" step="any" placeholder="在地图上选点"></label>
+                <label class="field">检测间隔（分钟）<input id="geoInterval" type="number" min="1" max="1440" step="1" required value="60"></label>
+                <label class="field">最长检测时长（小时）<input id="geoDuration" type="number" min="0.0166666667" max="168" step="any" required value="4"></label>
+                <label class="field">边缘缓冲距离（米）<input id="geoBuffer" type="number" min="0" max="10000" step="1" required value="1000"></label>
+                <label class="field">可接受定位精度（米）<input id="geoAccuracy" type="number" min="100" max="10000" step="1" required value="3000"></label>
+                <label class="field">位置有效期（分钟）<input id="geoAge" type="number" min="1" max="60" step="1" required value="15"></label>
+              </div>
+              <label class="check" style="margin-top:14px"><input id="geoTest" type="checkbox">测试模式：每 15 秒检测，最长 1 分钟</label>
+            </details>
+            <p id="geoSummary" class="status-line"></p>
+            <div class="action-row"><span id="geoDirty" class="muted small">尚未修改</span><button id="geoSave" class="primary" type="submit">保存围栏</button></div>
           </fieldset>
         </form>
       </section>
     </div>
     <section class="panel">
-      <div class="panel-header"><h3>手机执行规则</h3><span id="geoMode" class="proxy-badge">未启用</span></div>
+      <div class="panel-header"><h3>按这个范围判断</h3><span id="geoMode" class="proxy-badge">未启用</span></div>
       <div class="geofence-rules">
-        <div><span class="label">内网</span><p>立即在家，停止本轮定位</p></div>
-        <div><span class="label">已确认出县</span><p>立即离家，结束本轮检测</p></div>
-        <div><span class="label">县内 / 定位失败</span><p>保留 HA 状态，继续下一次</p></div>
-        <div><span class="label">检测窗口结束</span><p>仍处于外网则判定离家</p></div>
+        <div><span class="label">连接内网</span><p>立即在家，停止本轮定位</p></div>
+        <div><span class="label">确认离开圆形范围</span><p>立即离家，结束本轮检测</p></div>
+        <div><span class="label">范围内 / 定位失败</span><p>保留状态，继续下次检测</p></div>
+        <div><span class="label">外网持续到超时</span><p>按最长检测时长判定离家</p></div>
       </div>
-      <p id="geoSummary" class="status-line">—</p>
-      <p class="small muted">本页只管理配置，不获取手机位置，也不直接调用 HA。需要支持此接口的 Android 客户端执行；现有手机版本暂未接入。锁屏可能延后检测时间。</p>
+      <p class="small muted" style="margin-top:16px">本页只管理配置；HA 仍由手机上报。手机端尚未接入地理围栏，保存本页不会立即改变 HA 状态。</p>
     </section>
   </section>
 
@@ -761,7 +785,8 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/videos.js?v=20261015-dates"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
-<script src="/static/geofence.js?v=20261016-geofence"></script>
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/geofence.js?v=20261017-circle"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>
 </body>
 </html>
