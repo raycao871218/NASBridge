@@ -166,6 +166,14 @@
       table { min-width:640px; }
     }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
+    .geofence-layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
+    .geofence-layout h3 { margin:0; }
+    .geofence-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:20px; }
+    .geofence-rules { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; }
+    #geoMap { width:100%; min-height:310px; margin:12px 0; }
+    #geoMap svg { display:block; }
+    @media(max-width:1100px) { .geofence-layout { grid-template-columns:1fr; } .geofence-rules { grid-template-columns:1fr 1fr; } }
+    @media(max-width:430px) { .geofence-fields { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -182,6 +190,7 @@
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="aliyunView" onclick="switchView('aliyunView',this)">阿里云安全组</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="smsView" onclick="switchView('smsView',this)">短信</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="geofenceView" onclick="switchView('geofenceView',this)">地理围栏</button>
   </nav>
 
   <section id="videosView" class="view">
@@ -201,6 +210,49 @@
       <div id="videoItems"></div>
     </section>
   </section>
+  <section id="geofenceView" class="view">
+    <div class="section-heading"><div><h2>地理围栏</h2><p>集中配置检测范围和时间规则，由手机读取并判断在家状态。</p></div><button id="geoReload" type="button">重新读取</button></div>
+    <p id="geoStatus" class="status-line" role="status">进入后加载配置</p>
+    <div class="geofence-layout">
+      <section class="panel geofence-map-panel">
+        <div class="panel-header"><div><h3>北川羌族自治县</h3><p class="muted small">全县范围 · 四川省绵阳市 · 北向上</p></div><span class="proxy-badge">县域围栏</span></div>
+        <div id="geoMap" role="img" aria-label="北川县及绵阳周边县域地图"><p class="muted">正在读取边界…</p></div>
+        <p class="small muted">高亮区域为县域近似边界，不是以新县城为中心的圆形范围。边界附近结合缓冲距离及定位精度判断。</p>
+        <p class="small muted" style="margin-top:8px">边界来源：<a href="https://geo.datav.aliyun.com/areas_v3/bound/510700_full.json" target="_blank" rel="noopener">阿里云 DataV 行政区划数据</a> · GCJ-02</p>
+      </section>
+      <section class="panel">
+        <form id="geoForm">
+          <div class="panel-header"><h3>检测规则</h3><span id="geoRevision" class="muted small">尚未读取</span></div>
+          <fieldset id="geoFields" disabled style="border:0;padding:0;margin:0;min-width:0">
+            <label class="check"><input id="geoEnabled" type="checkbox">启用地理围栏检测</label>
+            <p class="muted small">手机使用内网时立即在家；切到外网后，按下方周期进行位置检测。</p>
+            <div class="geofence-fields">
+              <label class="field">检测间隔（分钟）<input id="geoInterval" type="number" min="1" max="1440" step="1" required value="60"></label>
+              <label class="field">最长检测时长（小时）<input id="geoDuration" type="number" min="0.0166666667" max="168" step="any" required value="4"></label>
+              <label class="field">边界缓冲距离（米）<input id="geoBuffer" type="number" min="0" max="10000" step="1" required value="1000"></label>
+              <label class="field">可接受定位精度（米）<input id="geoAccuracy" type="number" min="100" max="10000" step="1" required value="3000"></label>
+              <label class="field">位置有效期（分钟）<input id="geoAge" type="number" min="1" max="60" step="1" required value="15"></label>
+            </div>
+            <label class="check" style="margin-top:14px"><input id="geoTest" type="checkbox">测试模式：每 15 秒检测，最长 1 分钟</label>
+            <p class="muted small">测试模式临时缩短时间，不覆盖正式周期。正常模式下，首次检测在一个周期后开始。</p>
+            <div class="action-row"><span id="geoDirty" class="muted small">尚未修改</span><button id="geoSave" class="primary" type="submit">保存配置</button></div>
+          </fieldset>
+        </form>
+      </section>
+    </div>
+    <section class="panel">
+      <div class="panel-header"><h3>手机执行规则</h3><span id="geoMode" class="proxy-badge">未启用</span></div>
+      <div class="geofence-rules">
+        <div><span class="label">内网</span><p>立即在家，停止本轮定位</p></div>
+        <div><span class="label">已确认出县</span><p>立即离家，结束本轮检测</p></div>
+        <div><span class="label">县内 / 定位失败</span><p>保留 HA 状态，继续下一次</p></div>
+        <div><span class="label">检测窗口结束</span><p>仍处于外网则判定离家</p></div>
+      </div>
+      <p id="geoSummary" class="status-line">—</p>
+      <p class="small muted">本页只管理配置，不获取手机位置，也不直接调用 HA。需要支持此接口的 Android 客户端执行；现有手机版本暂未接入。锁屏可能延后检测时间。</p>
+    </section>
+  </section>
+
   <section id="smsView" class="view">
     <div class="section-heading"><div><h2>短信</h2><p>查看手机转存的短信，按发送时间从新到旧排列。</p></div><button id="smsRefresh">刷新</button></div>
     <section class="panel">
@@ -395,7 +447,7 @@ function switchView(id, button, autoLoad=true){
   if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
-  if(autoLoad){if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
+  if(autoLoad){if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }
 function toggleCustomDays(){ const mode=document.getElementById('scheduleMode').value; document.getElementById('customDays').style.display=mode==='custom'?'flex':'none'; document.getElementById('monthDayField').hidden=mode!=='monthly'; }
@@ -709,6 +761,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/videos.js?v=20261015-dates"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
+<script src="/static/geofence.js?v=20261016-geofence"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>
 </body>
 </html>

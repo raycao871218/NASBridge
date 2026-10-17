@@ -25,6 +25,7 @@
     }
   }
   if(!changed&&saved.view==='aliyunView'&&!(saved.fields?.aliRegion&&saved.group))await aliAutoLoadDefaults();
+  if(!changed&&saved.view==='geofenceView')await loadGeofence();
   if(!changed&&saved.view==='ztView')await loadZTNetworks();
   if(!changed)window.scrollTo(0,Number.isFinite(saved.y)?saved.y:0);
   restoring=false;persist();
