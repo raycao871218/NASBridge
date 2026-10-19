@@ -16,6 +16,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       TZ: Asia/Shanghai
+      NASBRIDGE_GEOCODING_PROXY: ${NASBRIDGE_GEOCODING_PROXY:-}
       NASBRIDGE_POSTGRES_HOST: ${NASBRIDGE_POSTGRES_HOST:-host.docker.internal}
       NASBRIDGE_POSTGRES_PORT: ${NASBRIDGE_POSTGRES_PORT:-5432}
       NASBRIDGE_POSTGRES_DATABASE: ${NASBRIDGE_POSTGRES_DATABASE:-nasbridge}

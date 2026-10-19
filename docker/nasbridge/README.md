@@ -10,6 +10,7 @@
 - 视频 Tab：封面列表、标题搜索、在线播放、倍速、前后跳转与浏览器原生全屏；切换 Tab 自动暂停。列表展示接口返回的最近最多 200 部视频，播放编码支持取决于浏览器。
 - 每日任务手动执行：今天没有成功记录时提供入口，运行中禁止重复启动；连接设置见 [执行端配置](ops/DAILY_TASK_CONTROL.md)。
 - 每日任务阶段进度：实时显示当前及已完成阶段、最近心跳与进展；超时/中断记录会自动纠正，执行端部署及判定规则见 [进度记录](ops/runner/README.md)。
+- 地理围栏：真实地图搜索选点、拖动圆心、半径调整、周期与时长配置，以及供手机读取的圆形围栏接口（手机执行与 HA 上报后续接入）。
 
 Android App 单独维护，通过这些 HTTP API 访问本服务；本目录不包含 Android 工程，也不包含推送服务。
 
@@ -135,6 +136,6 @@ docker run --rm --network none \
 
 管理 API 沿用现有部署的访问控制，本身没有统一登录认证。短信包含个人内容，应通过可信内网或带认证的反向代理访问。NASBridge 主容器不挂载 Docker socket；独立的 `mihomo-control` 容器通过内部网络提供固定 Mihomo 容器的状态和启停操作，并挂载宿主机 Docker socket，因此仍需限制其容器访问权限。证书和 ZeroTier 管理沿用配置中的固定 SSH 连接。
 
-其他模块说明见 [ALIYUN.md](ALIYUN.md) 与 [ZEROTIER.md](ZEROTIER.md)。
+其他模块说明见 [ALIYUN.md](ALIYUN.md)、[ZEROTIER.md](ZEROTIER.md) 与 [GEOFENCE.md](GEOFENCE.md)。
 
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。

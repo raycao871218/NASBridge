@@ -1954,3 +1954,6 @@ async def sync_certificate(cert_id: str, payload: dict[str, Any] = Body(default=
 
 from .sms_api import router as sms_router
 app.include_router(sms_router)
+
+from .geofence import router as geofence_router
+app.include_router(geofence_router)
