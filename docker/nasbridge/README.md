@@ -1,6 +1,6 @@
-# NASBridge Docker 管理面板
+# 鸟巢 · NASBridge Docker 管理面板
 
-这是 NAS 上实际运行的 NASBridge 网页与接口服务源码。当前版本包括：
+这是 NAS 上实际运行的 NASBridge 网页与接口服务源码。管理面板名为「鸟巢」，Android 客户端名为「麻雀会」，采用与「咕咕咕」一致的暖纸蜡笔风，见 [BRANDING.md](BRANDING.md)。当前版本包括：
 
 - Mihomo 在线状态、连接和流量统计、应用识别、配置编辑，以及指定容器的启停控制。
 - 本地和远端证书检查、证书同步计划、远端 Nginx 反向代理管理。
@@ -139,3 +139,15 @@ docker run --rm --network none \
 其他模块说明见 [ALIYUN.md](ALIYUN.md)、[ZEROTIER.md](ZEROTIER.md) 与 [GEOFENCE.md](GEOFENCE.md)。
 
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
+
+## App 扫码配置
+
+后台“App 扫码配置”页可将家庭 Wi-Fi、内外网 NAS 地址与端口、HA 地址、实体、长期访问令牌、手机测试模式和当前围栏合为一个二维码。使用 NASBridge Android 0.16.0+，在 App “配置 → 扫码导入配置”预览确认后保存。HA 配置和围栏均可选择不包含。导入后自动同步停止，可在手机启用；系统权限和电池限制仍需手机授权。
+
+二维码内携带配置，请只给自己的手机扫码，不要分享包含令牌的下载文件。点击“保存配置”后，配置和 HA 令牌加密保存到 NAS 持久化数据目录；刷新或重启后自动加载，令牌输入框留空会保留已保存的令牌。读取接口只返回是否保存令牌，不返回明文。页面二维码 5 分钟后隐藏，后台已保存配置保留，下载文件仍可导入。生成接口沿用面板既有访问控制，应在可信内网或受保护的反向代理后使用。不会把数据库、SMTP、云服务等仅由服务端使用的凭据放入手机。
+
+`POST /api/android-setup/qr.svg` 请求包含 `network: {ssid, local_url, public_url}`、可选的 `presence: {url, entity, token, test_mode}` 和 `include_geofence`（默认 true）。二维码文本使用 `NASBRIDGE1:` 加 zlib 压缩 JSON 的无填充 Base64URL，解压后的协议为 `type=nasbridge.android.config`、`version=1`。压缩用于提高扫码成功率，不是加密；手机限制解压数据最多 8 KiB。只接受同源 JSON POST，请求最多 8 KiB、二维码内容最多 2000 字节，格式错误不会回显令牌。服务器不会根据提交的地址发起网络请求。地址可省略协议：内网 NAS 默认补 http://，外网 NAS 和 HA 默认补 https://；显式填写的协议保留。保存与二维码均使用补全后的地址。HA 地址须为 HTTPS，服务地址不可包含账号、查询参数或片段。
+
+保存接口：`GET /api/android-setup/config` 读取已保存配置（不返回令牌）；`PUT /api/android-setup/config` 保存完整配置及 `expected_revision`，旧版本写入返回 409。首次保存 HA 配置必须填写令牌，之后保存或生成二维码时令牌留空可复用已保存值。取消包含 HA 后保存会移除保存的 HA 配置。配置使用 Fernet 加密，原子替换写入，文件与密钥权限为 0600；保存在数据卷的 `android-setup.enc`、`android-setup.key`，备份和恢复时需同时保留两者。接口沿用 NAS 面板已有访问控制；有访问权限的面板使用者可生成包含已保存令牌的二维码。
+
+家庭 Wi-Fi 名称可留空（或省略 `network.ssid`），由 Android 0.16.1+ 在扫码时申请精确定位权限、读取手机当前已连接的 Wi-Fi，并在导入预览中确认。读取失败可重新读取或手动填写；确认前不会保存。后台不推测手机 SSID，也不读取 Wi-Fi 密码。已填写 SSID 的二维码仍按填写值导入，兼容旧版 App。

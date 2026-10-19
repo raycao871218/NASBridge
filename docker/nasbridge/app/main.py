@@ -53,6 +53,8 @@ from .zerotier import router as zerotier_router
 app.include_router(zerotier_router)
 from .mobile_api import router as mobile_router
 app.include_router(mobile_router)
+from .android_setup import router as android_setup_router
+app.include_router(android_setup_router)
 from .daily_task_control import router as daily_task_control_router, manual_control_status
 app.include_router(daily_task_control_router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")

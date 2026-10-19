@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NASBridge</title>
+  <title>鸟巢 · 我的 NAS 小窝</title>
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
     <style>
-    :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
+    :root { color-scheme:dark; --bg:#fcf6e8; --surface:#fffcf4; --surface-2:#eee9df; --surface-3:#f4efe5; --line:#aaa0a6; --line-soft:#d8cec3; --text:#3b3a49; --muted:#706b75; --green:#52745f; --yellow:#916524; --red:#a34d46; --blue:#4d669d; --accent:#4d669d; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
     html { min-width:320px; background:var(--bg); }
     body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(ellipse at 84% -10%,rgba(92,126,204,.15),transparent 34%),var(--bg); font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
@@ -19,8 +19,8 @@
     h3 { margin:0 0 14px; font-size:14px; font-weight:650; }
     p { margin:0; }
     button,input,select,textarea { font:inherit; }
-    button,.file-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 13px; border:1px solid #3a4b67; border-radius:9px; color:var(--text); background:#1b2940; font-size:12px; font-weight:600; line-height:18px; white-space:nowrap; cursor:pointer; flex-shrink:0; transition:background .16s,border-color .16s,transform .16s; }
-    button:hover,.file-button:hover { background:#263956; border-color:#6a87b4; transform:translateY(-1px); }
+    button,.file-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 13px; border:1px solid #8a8a9a; border-radius:9px; color:var(--text); background:#fffcf4; font-size:12px; font-weight:600; line-height:18px; white-space:nowrap; cursor:pointer; flex-shrink:0; transition:background .16s,border-color .16s,transform .16s; }
+    button:hover,.file-button:hover { background:#eee9df; border-color:#6a87b4; transform:translateY(-1px); }
     button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     button.primary { color:#0b1730; background:#9bbcff; border-color:#9bbcff; font-weight:700; }
     button.primary:hover { background:#b6ceff; border-color:#b6ceff; }
@@ -29,18 +29,18 @@
     button:disabled { opacity:.55; cursor:wait; transform:none; }
     input:not([type=checkbox]):not([type=file]),select { min-height:42px; width:100%; min-width:0; padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:var(--surface-3); color:var(--text); }
     input[type=checkbox] { width:17px; height:17px; margin:0; accent-color:var(--blue); flex-shrink:0; }
-    input::placeholder,textarea::placeholder { color:#71839e; }
-    label.field { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; color:#bfcbdb; font-size:12px; font-weight:550; }
+    input::placeholder,textarea::placeholder { color:#79717b; }
+    label.field { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; color:#514d58; font-size:12px; font-weight:550; }
     label.check { display:inline-flex; align-items:center; gap:9px; min-height:40px; font-size:12px; color:var(--text); }
-    .eyebrow { width:max-content; margin-bottom:4px; padding:2px 8px; border:1px solid #31415b; border-radius:999px; color:#aec6f5; background:#18253a; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
+    .eyebrow { width:max-content; margin-bottom:4px; padding:2px 8px; border:1px solid #31415b; border-radius:999px; color:#4d669d; background:#eee9df; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
     .header-note { margin-top:4px; color:var(--muted); font-size:12px; }
     .topbar-actions { display:flex; align-items:center; gap:10px; }
     .view-tabs { grid-column:1; grid-row:1 / span 2; position:sticky; top:22px; z-index:5; display:flex; flex-direction:column; gap:5px; width:100%; margin:0; padding:12px; overflow:visible; border:1px solid var(--line-soft); border-radius:16px; background:rgba(17,26,43,.88); box-shadow:var(--shadow); backdrop-filter:blur(16px); }
-    .view-tabs::before { content:"面板导航"; padding:4px 9px 9px; color:#71819a; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
-    .view-tab { display:flex; align-items:center; justify-content:flex-start; gap:11px; min-height:43px; width:100%; margin:0; padding:9px 11px; border:1px solid transparent; border-radius:10px; color:#a6b4c9; background:transparent; font-size:12px; font-weight:600; text-align:left; }
+    .view-tabs::before { content:"面板导航"; padding:4px 9px 9px; color:#706b75; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    .view-tab { display:flex; align-items:center; justify-content:flex-start; gap:11px; min-height:43px; width:100%; margin:0; padding:9px 11px; border:1px solid transparent; border-radius:10px; color:#706b75; background:transparent; font-size:12px; font-weight:600; text-align:left; }
     .view-tab::before { content:""; width:7px; height:7px; flex:none; border-radius:50%; background:currentColor; opacity:.55; }
-    .view-tab:hover { color:var(--text); background:#18253a; transform:none; }
-    .view-tab.active { color:#d9e6ff; border-color:#344968; background:linear-gradient(100deg,rgba(110,151,225,.2),rgba(110,151,225,.06)); box-shadow:inset 2px 0 #8eb5ff; }
+    .view-tab:hover { color:var(--text); background:#eee9df; transform:none; }
+    .view-tab.active { color:#3b3a49; border-color:#344968; background:linear-gradient(100deg,rgba(110,151,225,.2),rgba(110,151,225,.06)); box-shadow:inset 2px 0 #4d669d; }
     .view-tab.active::before { background:#91b7ff; box-shadow:0 0 10px rgba(142,181,255,.7); opacity:1; }
     .view { display:none; grid-column:2; min-width:0; }
     .view.active { display:block; }
@@ -65,7 +65,7 @@
     #connections { max-height:440px; }
     table { width:100%; border-collapse:collapse; min-width:700px; font-size:12px; }
     th,td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
-    th { position:sticky; top:0; z-index:1; color:#aab8cc; font-size:10px; font-weight:700; letter-spacing:.02em; background:#17243a; white-space:nowrap; }
+    th { position:sticky; top:0; z-index:1; color:#706b75; font-size:10px; font-weight:700; letter-spacing:.02em; background:#eee9df; white-space:nowrap; }
     td { overflow-wrap:anywhere; } tr:last-child td { border-bottom:0; }
     tbody tr:hover td,tr:hover td { background:rgba(137,181,255,.035); }
     td button { min-height:31px; padding:5px 10px; font-size:11px; }
@@ -76,7 +76,7 @@
     .proxy-card-main { min-width:0; flex:1; }
     .proxy-card-title,.proxy-card-route { display:flex; align-items:center; flex-wrap:wrap; gap:7px; min-width:0; }
     .proxy-card-title strong { font-size:12px; }
-    .proxy-card-route { margin-top:7px; color:#c4d0df; font-size:11px; }
+    .proxy-card-route { margin-top:7px; color:#514d58; font-size:11px; }
     .proxy-card-route > span:first-child,.proxy-card-route code { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .proxy-card-route code { color:#a9c8fb; }
     .proxy-badge { padding:2px 8px; border:1px solid #324663; border-radius:999px; background:#1c2c45; color:#b5cefa; font-size:9px; }
@@ -98,11 +98,11 @@
     .file-button { position:relative; overflow:hidden; }
     .file-button input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
     .file-button:focus-within { outline:2px solid var(--blue); outline-offset:3px; }
-    textarea { display:block; width:100%; min-height:360px; margin-top:16px; padding:15px; resize:vertical; color:#c8d7eb; background:var(--surface-3); border:1px solid var(--line); border-radius:10px; font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
+    textarea { display:block; width:100%; min-height:360px; margin-top:16px; padding:15px; resize:vertical; color:#514d58; background:var(--surface-3); border:1px solid var(--line); border-radius:10px; font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
     .form-section { margin-top:21px; padding-top:21px; border-top:1px solid var(--line-soft); }
     .label,.muted { color:var(--muted); } .small { font-size:11px; }
     .ok { color:var(--green); } .warning { color:var(--yellow); } .critical,.expired,.error { color:var(--red); } .proxy { color:var(--blue); }
-    code { color:#bad0f4; font-size:11px; } .error { white-space:pre-wrap; overflow-wrap:anywhere; }
+    code { color:#4d669d; font-size:11px; } .error { white-space:pre-wrap; overflow-wrap:anywhere; }
     #footer { grid-column:2; padding:1px 2px; color:var(--muted); font-size:11px; }
     dialog { width:min(480px,calc(100% - 32px)); max-height:calc(100vh - 40px); overflow:auto; padding:22px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 80px #0008; }
     dialog::backdrop { background:rgba(4,10,20,.72); backdrop-filter:blur(4px); }
@@ -137,7 +137,7 @@
       .view-tabs::before { display:none; }
       .view-tab { width:auto; min-width:max-content; min-height:38px; padding:7px 10px; font-size:11px; }
       .view-tab::before { width:6px; height:6px; }
-      .view-tab.active { box-shadow:inset 0 -2px #8eb5ff; }
+      .view-tab.active { box-shadow:inset 0 -2px #4d669d; }
       .view { grid-column:1; grid-row:3; }
       #footer { grid-column:1; grid-row:4; }
       .section-heading { margin-bottom:14px; }
@@ -189,11 +189,13 @@
     @media(max-width:1100px) { .geofence-layout { grid-template-columns:1fr; } .geofence-rules { grid-template-columns:1fr 1fr; } }
     @media(max-width:430px) { .geofence-fields { grid-template-columns:1fr; } }
   </style>
+  <link rel="icon" href="/static/nest.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/crayon.css?v=20261019">
 </head>
 <body>
 <main>
   <header>
-    <div><div class="eyebrow">NAS 管理面板</div><h1>NASBridge</h1><div class="muted header-note">代理连接与 HTTPS 服务管理</div></div>
+    <div class="nest-brand"><img src="/static/nest.svg" alt="" width="82" height="82"><div><div class="eyebrow">我的 NAS 小窝</div><h1>鸟巢</h1><div class="muted header-note">让服务各就各位，让日常轻轻松松。</div></div></div>
     <div class="topbar-actions"><button onclick="load()">刷新数据</button></div>
   </header>
   <nav class="view-tabs" role="tablist" aria-label="功能模块">
@@ -205,7 +207,37 @@
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="smsView" onclick="switchView('smsView',this)">短信</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="geofenceView" onclick="switchView('geofenceView',this)">地理围栏</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="androidSetupView" onclick="switchView('androidSetupView',this)">App 扫码配置</button>
   </nav>
+
+  <section id="androidSetupView" class="view">
+    <div class="section-heading"><div><h2>App 扫码配置</h2><p>填写一次，生成二维码，手机确认导入后即可使用。</p></div></div>
+    <section class="panel">
+      <form id="androidSetupForm" autocomplete="off">
+        <div class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))">
+          <label class="field">家庭 Wi-Fi 名称（可留空）<input id="setupSsid" maxlength="128" placeholder="留空，手机扫码时自动读取"></label>
+          <label class="field">内网 NAS 地址（含端口）<input id="setupLocal" type="text" inputmode="url" required maxlength="512" placeholder="192.168.1.10:18080"></label>
+          <label class="field">外网 NAS 地址（含端口）<input id="setupPublic" type="text" inputmode="url" required maxlength="512" placeholder="nas.example.com:18099"></label>
+        </div>
+        <label class="check" style="margin-top:16px"><input id="setupPresence" type="checkbox" checked>包含 HA 在家状态同步配置</label>
+        <div id="setupPresenceFields" class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));margin-top:12px">
+          <label class="field">HA 地址（HTTPS，含端口）<input id="setupHaUrl" type="text" inputmode="url" maxlength="512" placeholder="ha.example.com:8123"></label>
+          <label class="field">HA 实体<input id="setupEntity" maxlength="160" value="input_boolean.home" placeholder="input_boolean.home"></label>
+          <label class="field">HA 长期访问令牌<input id="setupToken" type="password" maxlength="1024" autocomplete="new-password" spellcheck="false"></label>
+          <label class="check"><input id="setupTest" type="checkbox">测试模式：每 1 分钟定位（关闭为 30 分钟）</label>
+        </div>
+        <p class="small muted">地址可省略 http:// 或 https://：内网默认 HTTP，外网和 HA 默认 HTTPS；已填写的协议会保留。</p>
+        <label class="check" style="margin-top:12px"><input id="setupFence" type="checkbox" checked>带上 NAS 当前已保存的地理围栏</label>
+        <p class="small muted">二维码可能包含 HA 令牌，请仅给自己的手机扫码并妥善保管下载文件。点击“保存配置”后，配置与令牌加密保存到 NAS，刷新后自动加载；令牌输入框留空会保留已保存值。页面二维码 5 分钟后自动隐藏，下载文件仍可导入。Wi-Fi 名称留空时，由 Android 0.16.1+ 在扫码时读取手机当前连接的 Wi-Fi，确认后保存；请在家里连接 Wi-Fi 再扫码。手机权限需单独授权，导入后可在 App 启用在家同步。</p>
+        <div class="action-row"><button id="setupLoad" type="button">读取后台配置</button><button id="setupSave" type="button">保存配置</button><button id="setupGenerate" class="primary" type="submit">生成配置二维码</button></div>
+      </form>
+      <p id="setupStatus" class="status-line" role="status"></p>
+      <div id="setupQrPanel" hidden>
+        <img id="setupQr" alt="麻雀会 App 配置二维码" style="display:block;width:min(100%,480px);height:auto;background:white;margin:20px 0" />
+        <div class="toolbar"><a id="setupDownload" class="file-button" download="NASBridge-configuration.svg">下载二维码</a><button id="setupHide" type="button">隐藏并清空令牌</button></div>
+      </div>
+    </section>
+  </section>
 
   <section id="videosView" class="view">
     <div class="section-heading"><div><h2>视频</h2><p>浏览犀牛哥视频，选择封面即可播放。</p></div><button id="videosRefresh" type="button">刷新</button></div>
@@ -273,7 +305,7 @@
         <div><span class="label">范围内 / 定位失败</span><p>保留状态，继续下次检测</p></div>
         <div><span class="label">外网持续到超时</span><p>按最长检测时长判定离家</p></div>
       </div>
-      <p class="small muted" style="margin-top:16px">本页管理配置，由 NASBridge Android 0.15.0 及以上版本读取并执行检测，HA 由手机直接上报。手机每 5 分钟自动同步，也可在手机设置页手动同步；保存本页不会立即改变 HA 状态。</p>
+      <p class="small muted" style="margin-top:16px">本页管理配置，由 麻雀会 Android 0.15.0 及以上版本读取并执行检测，HA 由手机直接上报。手机每 5 分钟自动同步，也可在手机设置页手动同步；保存本页不会立即改变 HA 状态。</p>
     </section>
   </section>
 
@@ -670,7 +702,7 @@ function render(data) {
   renderSchedule(data.schedule||{});
   document.getElementById('footer').textContent=`最后更新：${formatPanelDate(data.generated_at)}`;
 }
-async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 NASBridge 配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 NASBridge 证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
+async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 鸟巢配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 鸟巢证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
 async function scanApplications(){ const status=document.getElementById('appScanStatus'); status.textContent='扫描中…'; try { const r=await fetch('/api/applications/scan',{method:'POST'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已记录 ${data.applications.length} 个应用，发现 ${data.connections_seen} 条连接`; await load(); } catch(e) { status.textContent=`扫描失败：${e.message||e}`; } }
 async function saveSchedule(){
   const mode=document.getElementById('scheduleMode').value;
@@ -787,6 +819,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
+<script src="/static/android-setup.js?v=20261019-auto-wifi"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>
 </body>
 </html>
