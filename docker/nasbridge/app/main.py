@@ -1528,30 +1528,9 @@ async def certificate_scheduler() -> None:
 async def build_overview() -> dict[str, Any]:
     config = load_config()
     mihomo = await build_mihomo_snapshot(config)
+    # Keep the response field for older clients, without inferring applications
+    # from shared source IPs or manually configured application names.
     applications: list[dict[str, Any]] = []
-    registry_apps = load_applications(config)
-    # Re-discover from the live Mihomo snapshot on every overview request. Saved scan
-    # records remain useful as matching metadata, but discovered rows are only shown
-    # while a matching connection is currently active.
-    current_apps = discovered_application_records(mihomo, registry_apps)
-    for item in current_apps:
-        matched = [connection for connection in mihomo.get("connections", []) if connection_matches(connection, item)]
-        if item.get("discovered") and not matched:
-            continue
-        routes = {connection["route"] for connection in matched}
-        observed = "idle" if not matched else "mixed" if len(routes) > 1 else next(iter(routes))
-        applications.append({
-            "id": item.get("id"),
-            "name": item.get("name", item.get("id")),
-            "expected_mode": item.get("expected_mode", "unknown"),
-            "observed_mode": observed,
-            "active_connections": len(matched),
-            "upload": sum(connection["upload"] for connection in matched),
-            "download": sum(connection["download"] for connection in matched),
-            "connections": matched[:50],
-            "note": item.get("note"),
-            "qbt_proxy": qbt_proxy_status(item.get("qbt_config")),
-        })
     certs = [inspect_local_cert(item) for item in config.get("certificates", {}).get("local", [])]
     certs.extend(inspect_remote_cert(item) for item in config.get("certificates", {}).get("remote", []))
     local_by_id = {item.get("id"): item for item in certs if item.get("kind") == "local"}
@@ -1561,7 +1540,7 @@ async def build_overview() -> dict[str, Any]:
             remote["matches_local"] = local["fingerprint_sha256"] == remote["fingerprint_sha256"]
         else:
             remote["matches_local"] = None
-    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": application_registry_state(), "certificates": certs, "schedule": schedule_state(), "generated_at": utc_now().isoformat()}
+    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": {}, "certificates": certs, "schedule": schedule_state(), "generated_at": utc_now().isoformat()}
 
 
 @app.on_event("startup")

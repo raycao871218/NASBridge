@@ -334,11 +334,7 @@
       <p id="mihomoActionStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
     <section class="grid" id="metrics"></section>
-    <section class="panel">
-      <div class="panel-header"><div><h2>应用代理状态</h2><p class="muted small">按当前 Mihomo 活动连接自动识别应用；配置应用始终显示，已停止活动的发现项会自动隐藏。</p></div><div class="section-actions"><button onclick="scanApplications()">扫描并保存识别信息</button></div></div>
-      <p id="appScanStatus" class="status-line" role="status"></p><div id="apps" class="table-scroll">加载中…</div>
-    </section>
-    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源应用、目标地址、路由结果和流量。</p></div></div><div id="connections" class="table-scroll">加载中…</div></section>
+    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源地址、目标地址、路由结果和流量。</p></div></div><div id="connections" class="table-scroll">加载中…</div></section>
     <details class="panel">
       <summary><span>Mihomo 配置<small>编辑代理节点、分流规则和配置文件</small></span></summary>
       <div class="editor-body">
@@ -692,9 +688,6 @@ function render(data) {
     ['直连连接', `${m.direct_count||0} / ${bytes((m.direct_bytes||{}).download)}`, '']
   ].map(x=>`<div class="panel"><div class="label">${x[0]}</div><div class="metric ${x[2]}">${x[1]}</div></div>`).join('');
   if(m.error) document.getElementById('metrics').innerHTML += `<div class="panel error">${esc(m.error)}</div>`;
-  const apps=data.applications||[];
-  const registry=data.application_registry||{};
-  document.getElementById('apps').innerHTML = apps.length ? `<div class="muted small">应用识别：实时活动连接 + 配置应用${registry.source==='saved_scan'?'；已保存扫描记录用于辅助匹配':''}${registry.scanned_at?`；上次扫描：${esc(formatPanelDate(registry.scanned_at))}`:''}</div><table><tr><th>应用</th><th>配置模式</th><th>当前观测</th><th>连接数</th><th>累计下载/上传</th><th>说明</th></tr>${apps.map(a=>`<tr><td>${esc(a.name)}</td><td>${mode(a.expected_mode)}</td><td>${mode(a.observed_mode)}</td><td>${a.active_connections}</td><td>${bytes(a.download)} / ${bytes(a.upload)}</td><td>${esc(a.qbt_proxy ? `qBittorrent代理：${a.qbt_proxy.configured?'已配置':'未配置'} ${a.qbt_proxy.host||''}:${a.qbt_proxy.port||''}` : (a.note||''))}</td></tr>`).join('')}</table>` : '未配置应用。';
   const conns=m.connections||[];
   document.getElementById('connections').innerHTML = conns.length ? `<table><tr><th>路由</th><th>来源</th><th>目标</th><th>链路</th><th>规则</th><th>流量</th></tr>${conns.map(c=>`<tr><td>${mode(c.route)}</td><td><code>${esc(c.source_ip)}:${esc(c.source_port)}</code><br><span class="muted small">${esc(c.process)}</span></td><td>${esc(c.host)}:${esc(c.destination_port)}</td><td>${esc((c.chains||[]).join(' → '))}</td><td>${esc(c.rule)}</td><td>${bytes(c.download)} ↓<br>${bytes(c.upload)} ↑</td></tr>`).join('')}</table>` : '当前没有活动连接。';
   const certs=data.certificates||[];
@@ -703,7 +696,6 @@ function render(data) {
   document.getElementById('footer').textContent=`最后更新：${formatPanelDate(data.generated_at)}`;
 }
 async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 鸟巢配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 鸟巢证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
-async function scanApplications(){ const status=document.getElementById('appScanStatus'); status.textContent='扫描中…'; try { const r=await fetch('/api/applications/scan',{method:'POST'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已记录 ${data.applications.length} 个应用，发现 ${data.connections_seen} 条连接`; await load(); } catch(e) { status.textContent=`扫描失败：${e.message||e}`; } }
 async function saveSchedule(){
   const mode=document.getElementById('scheduleMode').value;
   const days=[...document.querySelectorAll('#customDays input:checked')].map(x=>Number(x.value));
