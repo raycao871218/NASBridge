@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from app import home, home_preview
+import httpx
 
 
 class PreviewCacheTest(unittest.IsolatedAsyncioTestCase):
@@ -50,6 +51,13 @@ class PreviewCacheTest(unittest.IsolatedAsyncioTestCase):
 
 
 class PreviewRouteTest(unittest.TestCase):
+    def test_proxy_reuses_credentials_and_bypasses_home_network(self):
+        settings = home_preview.playwright_proxy(httpx.Proxy('http://proxy.local:7890', auth=('user', 'test-password')))
+        self.assertEqual(settings['server'], 'http://proxy.local:7890')
+        self.assertEqual(settings['username'], 'user')
+        self.assertEqual(settings['password'], 'test-password')
+        self.assertIn('192.168.0.0/16', settings['bypass'])
+
     def test_only_saved_slots_are_captured(self):
         app = FastAPI()
         app.include_router(home.router)
