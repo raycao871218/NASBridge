@@ -14,9 +14,13 @@ const root=path.join(__dirname,'app','static');
  let browser;
  try{
   browser=await chromium.launch({headless:true,...(process.env.HOME_TEST_BROWSER?{channel:process.env.HOME_TEST_BROWSER}:{})});
+  const thumbnailPage=await browser.newPage({viewport:{width:1280,height:800}});
+  await thumbnailPage.setContent('<body style="margin:0;font:24px system-ui;background:#f5f6f8;color:#27334c"><header style="padding:24px 48px;background:#26364c;color:white">我的相册　　照片　　时间线　　收藏</header><main style="padding:36px 48px"><h1>生活里的好风景</h1><p>最近上传 · 2026 年 10 月</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">'+['#809b84','#9eabc6','#d7b08c','#b4a1bd','#8baba8','#c8bc92'].map((c,i)=>`<section style="height:220px;border-radius:14px;background:linear-gradient(150deg,${c},#f3e9cd);padding:20px;box-sizing:border-box">相册 ${i+1}<div style="margin:25px auto;width:90px;height:90px;border-radius:50%;background:#fff5"></div></section>`).join('')+'</div></main></body>');
+  const previewBytes=await thumbnailPage.screenshot({type:'jpeg'});await thumbnailPage.close();
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
   let state={revision:0,sites:Array(6).fill(null)}, failure=false, loadFailure=false, metadataFailure=false;
   await page.route('**/api/**',async route=>{
+   if(/\/api\/home\/sites\/\d\/preview/.test(route.request().url()))return route.fulfill({contentType:'image/jpeg',body:previewBytes});
    if(route.request().url().endsWith('/api/home/metadata'))return route.fulfill(metadataFailure?{status:502,json:{detail:'暂时无法读取网站信息，可直接保存'}}:{json:{name:'自动读取的相册',image_url:new URL('/static/nest.svg',route.request().url()).href}});
    if(!route.request().url().endsWith('/api/home/sites'))return route.fulfill({json:{}});
    if(route.request().method()==='PUT'){

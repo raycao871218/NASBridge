@@ -15,6 +15,11 @@ RUN export HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" ALL_PROXY="$ALL_P
     && pip install --no-cache-dir -r requirements.txt imageio-ffmpeg==0.6.0
 RUN python -c 'import os, imageio_ffmpeg; os.symlink(imageio_ffmpeg.get_ffmpeg_exe(), "/usr/local/bin/ffmpeg")'
 
+RUN export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends chromium fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY app ./app
 COPY config/config.yaml.example ./config/config.yaml.example
 

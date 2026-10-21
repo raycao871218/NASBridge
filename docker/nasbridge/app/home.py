@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, field_validator
 
 router = APIRouter(prefix="/api/home", tags=["home"])
@@ -107,3 +108,16 @@ async def website_metadata(body: MetadataRequest, request: Request):
     check_origin(request)
     from .home_metadata import read_metadata
     return JSONResponse(await read_metadata(body.url), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/sites/{slot}/preview")
+async def website_preview(slot: int):
+    if not 0 <= slot < 6:
+        raise HTTPException(404, "网站不存在")
+    with _lock:
+        site = load_state()["sites"][slot]
+    if not site:
+        raise HTTPException(404, "网站不存在")
+    from .home_preview import screenshot
+    path = await screenshot(site["url"])
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})

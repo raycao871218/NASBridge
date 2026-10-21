@@ -9,12 +9,15 @@
   }catch{throw new Error('请填写有效的 HTTP 或 HTTPS 网址，不含登录凭据');}
   return url;
  }
- function preview(site){
+ function preview(site,index){
   const frame=document.createElement('div');frame.className='site-preview';
-  const mark=document.createElement('span');mark.className='site-monogram';mark.textContent=(site.name||new URL(site.url).hostname).slice(0,2).toUpperCase();frame.append(mark);
-  const addImage=(url,className,onError)=>{const img=document.createElement('img');img.src=url;img.alt='';img.className=className;img.loading='lazy';img.referrerPolicy='no-referrer';img.addEventListener('error',()=>{img.remove();if(onError)onError();},{once:true});frame.append(img);};
-  const favicon=()=>addImage(new URL('/favicon.ico',site.url).href,'site-favicon');
-  if(site.image_url)addImage(site.image_url,'site-cover',favicon);else favicon();
+  const hint=document.createElement('span');hint.className='site-preview-hint';
+  hint.textContent=Number.isInteger(index)?'正在生成网页首屏预览…':'保存后自动生成网页首屏截图';frame.append(hint);
+  if(Number.isInteger(index)){
+   const img=document.createElement('img');img.src=`/api/home/sites/${index}/preview?v=${state.revision}`;img.alt=`${site.name}的网页首屏`;img.className='site-cover';img.loading='lazy';
+   img.addEventListener('load',()=>hint.remove(),{once:true});
+   img.addEventListener('error',()=>{img.remove();hint.textContent='网页暂时无法预览，仍可点击打开';},{once:true});frame.append(img);
+  }
   return frame;
  }
  function render(){
@@ -26,10 +29,10 @@
     const number=document.createElement('span');number.className='site-number';number.textContent=`常用网站 / 0${index+1}`;
     const name=document.createElement('strong');name.textContent=site.name;
     const address=document.createElement('small');address.textContent=new URL(site.url).host;
-    link.append(preview(site),number,name,address);card.append(link);
+    link.append(preview(site,index),number,name,address);card.append(link);
    }
    const button=document.createElement('button');button.type='button';button.className=site?'site-edit':'site-add';
-   if(site)button.textContent='编辑网站';else{const icon=document.createElement('span');icon.textContent='＋';const label=document.createElement('strong');label.textContent='添加常用网站';const hint=document.createElement('small');hint.textContent='粘贴网址，自动获取标题和预览';button.append(icon,label,hint);}
+   if(site)button.textContent='编辑网站';else{card.classList.add('home-site-empty');const icon=document.createElement('span');icon.textContent='＋';const label=document.createElement('strong');label.textContent='添加常用网站';const hint=document.createElement('small');hint.textContent='粘贴网址，自动生成网页首屏预览';button.append(icon,label,hint);}
    button.setAttribute('aria-label',site?`编辑 ${site.name}`:`添加第 ${index+1} 个网站`);
    button.addEventListener('click',()=>edit(index));card.append(button);grid.append(card);
   });
