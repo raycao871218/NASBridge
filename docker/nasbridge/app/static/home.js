@@ -15,7 +15,7 @@
   const brand=brands.find(([domain])=>host===domain||host.endsWith('.'+domain));
   const frame=document.createElement('div');frame.className='site-preview site-identity';
   if(brand){frame.style.setProperty('--site-ink',brand[3]);frame.style.setProperty('--site-paper',brand[4]);}
-  const badge=document.createElement('span');badge.className='site-identity-badge';badge.textContent=brand?brand[1]:site.name.slice(0,2).toUpperCase();
+  const badge=document.createElement('span');badge.className='site-identity-badge';badge.textContent=brand?brand[1]:site.name;
   const caption=document.createElement('span');caption.className='site-identity-caption';caption.textContent=brand?brand[2]:host;
   frame.append(badge,caption);return frame;
  }
