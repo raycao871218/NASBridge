@@ -17,6 +17,8 @@ Android App 单独维护，通过这些 HTTP API 访问本服务；本目录不�
 
 ## 首次部署
 
+网页截图会自动复用已配置的 Mihomo 出口，内网地址绕过代理；可用 `NASBRIDGE_PREVIEW_PROXY` 显式指定截图代理。镜像包含 Chromium 和中文字体。真实浏览器回归可在构建出的镜像中设置 `NASBRIDGE_BROWSER_TESTS=1` 运行测试，仅访问测试进程的本地页面。
+
 在仓库根目录执行以下步骤。已经运行的 NAS 不需要覆盖配置或重新初始化：
 
 ```sh
