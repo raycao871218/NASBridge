@@ -56,7 +56,7 @@
   editing=index;const site=state.sites[index];editSession++;inspection=null;inspectedUrl=site?.image_url?site.url:'';imageUrl=site?.image_url||null;autoName='';
   $('homeSiteTitle').textContent=site?'编辑常用网站':'添加常用网站';
   $('homeSiteName').value=site?.name||'';$('homeSiteUrl').value=site?.url||'';
-  $('homeSiteRemove').hidden=!site;$('homeSiteError').textContent='';$('homeSitePreview').replaceChildren();if(site)$('homeSitePreview').append(preview(site));dialog.showModal();$('homeSiteUrl').focus();
+  $('homeSiteRemove').hidden=!site;$('homeSiteError').textContent='';$('homeSitePreview').replaceChildren();if(site)$('homeSitePreview').append(preview(site,index));dialog.showModal();$('homeSiteUrl').focus();
  }
  async function inspect(force=false){
   let url;try{url=normalizeUrl($('homeSiteUrl').value);}catch(error){$('homeSiteError').textContent=error.message;return;}
@@ -64,13 +64,13 @@
   if(!force&&inspectedUrl===url)return;
   const session=editSession;
   const promise=(async()=>{
-   $('homeSiteError').textContent='正在读取标题和预览图…';
+   $('homeSiteError').textContent='正在读取网站标题…';
    try{
     const response=await fetch('/api/home/metadata',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
     const data=await response.json();if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'暂时无法读取网站信息，可直接保存');
     if(session!==editSession||!dialog.open||normalizeUrl($('homeSiteUrl').value)!==url)return;
     if(!$('homeSiteName').value.trim()||$('homeSiteName').value===autoName){autoName=data.name;$('homeSiteName').value=data.name;}
-    imageUrl=data.image_url||null;inspectedUrl=url;$('homeSitePreview').replaceChildren(preview({name:data.name,url,image_url:imageUrl}));$('homeSiteError').textContent='已读取网站信息，标题可以自行调整';
+    imageUrl=data.image_url||null;inspectedUrl=url;$('homeSitePreview').replaceChildren(preview({name:data.name,url},state.sites[editing]?.url===url?editing:undefined));$('homeSiteError').textContent='标题已填写，可自行调整；保存后自动生成网页截图';
    }catch(error){if(session===editSession&&dialog.open)$('homeSiteError').textContent=error.message;}
    finally{if(inspection?.promise===promise)inspection=null;}
   })();
