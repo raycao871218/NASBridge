@@ -343,7 +343,18 @@
       <p id="mihomoActionStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
     <section class="grid" id="metrics"></section>
-    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源地址、目标地址、路由结果和流量。</p></div></div><div id="connections" class="table-scroll">加载中…</div></section>
+    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源地址、目标地址、路由结果和流量。</p></div></div><div class="action-row"><label>来源筛选 <select id="sourceFilter" onchange="renderSourceConnections()"><option value="">全部来源</option></select></label><span id="sourceTraffic" class="muted small" role="status"></span></div>
+      <p class="muted small">统计当前活动连接的累计流量，连接结束后不再计入。</p>
+      <div id="connections" class="table-scroll">加载中…</div>
+      <details ontoggle="if(this.open) loadSourceAliases()"><summary>管理来源别名</summary>
+        <p class="muted small">端口留空匹配整个 IP；IP + 端口规则优先。来源端口可能随连接变化。</p>
+        <form onsubmit="saveSourceAlias(event)" class="action-row">
+          <label>IP <input id="sourceAliasIp" required placeholder="192.168.1.20 或 ::1"></label>
+          <label>来源端口 <input id="sourceAliasPort" type="number" min="1" max="65535" placeholder="留空：全部端口"></label>
+          <label>别名 <input id="sourceAliasName" required maxlength="80" placeholder="我的手机"></label>
+          <button type="submit">保存别名</button>
+        </form><p id="sourceAliasStatus" role="status"></p><div id="sourceAliasRules"></div>
+      </details></section>
     <details class="panel">
       <summary><span>Mihomo 配置<small>编辑代理节点、分流规则和配置文件</small></span></summary>
       <div class="editor-body">
@@ -509,6 +520,7 @@
 <script src="/static/home.js?v=20261021-screenshot"></script>
 <script src="/static/daily-task-control.js?v=20261016"></script>
 <script src="/static/daily-task-progress.js?v=20261015"></script>
+<script src="/static/source-aliases.js?v=20261021"></script>
 <script>
 let scheduleLoaded=false, scheduleDirty=false;
 const expandedDailySummaries=new Set();
@@ -710,8 +722,8 @@ function render(data) {
     ['直连连接', `${m.direct_count||0} / ${bytes((m.direct_bytes||{}).download)}`, '']
   ].map(x=>`<div class="panel"><div class="label">${x[0]}</div><div class="metric ${x[2]}">${x[1]}</div></div>`).join('');
   if(m.error) document.getElementById('metrics').innerHTML += `<div class="panel error">${esc(m.error)}</div>`;
-  const conns=m.connections||[];
-  document.getElementById('connections').innerHTML = conns.length ? `<table><tr><th>路由</th><th>来源</th><th>目标</th><th>链路</th><th>规则</th><th>流量</th></tr>${conns.map(c=>`<tr><td>${mode(c.route)}</td><td><code>${esc(c.source_ip)}:${esc(c.source_port)}</code><br><span class="muted small">${esc(c.process)}</span></td><td>${esc(c.host)}:${esc(c.destination_port)}</td><td>${esc((c.chains||[]).join(' → '))}</td><td>${esc(c.rule)}</td><td>${bytes(c.download)} ↓<br>${bytes(c.upload)} ↑</td></tr>`).join('')}</table>` : '当前没有活动连接。';
+  sourceConnections=m.connections||[];
+  renderSourceConnections();
   const certs=data.certificates||[];
   document.getElementById('certs').innerHTML = certs.length ? `<table><tr><th>证书</th><th>类型</th><th>状态</th><th>到期时间</th><th>剩余</th><th>一致性/操作</th></tr>${certs.map(c=>{ const match=c.kind==='remote' ? (c.matches_local===true?'与本地一致':c.matches_local===false?'<span class="critical">与本地不一致</span>':'无法比较') : ''; const action=`${c.kind==='remote'&&c.sync_enabled ? `<button class="cell-action" onclick='syncCert(${JSON.stringify(c.id)})'>同步本地证书</button>` : ''}${c.status==='expired' ? `<button class="cell-action danger" onclick='deleteExpiredCert(${JSON.stringify(c.id)},${JSON.stringify(c.name)})'>删除过期记录</button>` : ''}`; const check=c.verified===true?'TLS验证通过':c.verified===false?'TLS验证失败':esc(c.error||'本地证书已读取'); return `<tr><td>${esc(c.name)}<br><span class="muted small">${esc(c.domain||c.path||`${c.host}:${c.port}`)}</span></td><td>${c.kind==='local'?'NAS本地':'远端服务器'}</td><td class="${esc(c.status)}">${esc(c.status)}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'-')}</td><td>${c.days_left==null?'-':`${c.days_left} 天`}</td><td>${match}<br>${check}${action}</td></tr>`; }).join('')}</table>` : '未配置证书。';
   renderSchedule(data.schedule||{});

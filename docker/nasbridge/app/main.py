@@ -48,6 +48,8 @@ MIHOMO_CONTROL_URL = os.getenv("MIHOMO_CONTROL_URL", "http://mihomo-control:8001
 from .aliyun import router as aliyun_router
 
 app = FastAPI(title="NASBridge", version="0.1.0")
+from .source_aliases import router as source_alias_router, label_connections, read_rules as read_source_aliases
+app.include_router(source_alias_router)
 app.include_router(aliyun_router)
 from .zerotier import router as zerotier_router
 app.include_router(zerotier_router)
@@ -1438,7 +1440,7 @@ async def build_mihomo_snapshot(config: dict[str, Any]) -> dict[str, Any]:
         version = await mihomo_get("/version", mihomo_config)
         raw_connections = await mihomo_get("/connections", mihomo_config)
         connections = raw_connections.get("connections", []) if isinstance(raw_connections, dict) else []
-        items = [connection_item(item) for item in connections]
+        items = label_connections([connection_item(item) for item in connections], read_source_aliases())
         proxied = [item for item in items if item["route"] == "proxy"]
         direct = [item for item in items if item["route"] == "direct"]
         snapshot.update({
