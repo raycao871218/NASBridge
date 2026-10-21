@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
-  <link rel="stylesheet" href="/static/home.css?v=20261021">
+  <link rel="stylesheet" href="/static/home.css?v=20261021-preview">
     <style>
     :root { color-scheme:dark; --bg:#fcf6e8; --surface:#fffcf4; --surface-2:#eee9df; --surface-3:#f4efe5; --line:#aaa0a6; --line-soft:#d8cec3; --text:#3b3a49; --muted:#706b75; --green:#52745f; --yellow:#916524; --red:#a34d46; --blue:#4d669d; --accent:#4d669d; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -497,14 +497,16 @@
 <dialog id="homeSiteDialog" aria-labelledby="homeSiteTitle">
   <h2 id="homeSiteTitle">添加常用网站</h2>
   <form id="homeSiteForm">
-    <label class="field">网站名称<input id="homeSiteName" required maxlength="40" placeholder="例如：我的相册" autocomplete="off"></label>
-    <label class="field">网站地址<input id="homeSiteUrl" required maxlength="2048" inputmode="url" placeholder="https://example.com" autocomplete="off" spellcheck="false"></label>
+    <label class="field">网站地址<input id="homeSiteUrl" required maxlength="2048" inputmode="url" placeholder="粘贴网站地址，即可自动读取信息" autocomplete="off" spellcheck="false"></label>
+    <button id="homeSiteRead" type="button">读取网站信息</button>
+    <div id="homeSitePreview"></div>
+    <label class="field">网站标题（自动填写，可修改）<input id="homeSiteName" maxlength="40" placeholder="自动读取；留空时使用网站域名" autocomplete="off"></label>
     <p class="muted small">支持 HTTP、HTTPS 和内网地址；省略协议时默认使用 HTTPS。</p>
     <p id="homeSiteError" class="error" role="status"></p>
     <div class="action-row"><button id="homeSiteRemove" class="danger" type="button" hidden>移除网站</button><button id="homeSiteCancel" type="button">取消</button><button class="primary" type="submit">保存网站</button></div>
   </form>
 </dialog>
-<script src="/static/home.js?v=20261021"></script>
+<script src="/static/home.js?v=20261021-preview"></script>
 <script src="/static/daily-task-control.js?v=20261016"></script>
 <script src="/static/daily-task-progress.js?v=20261015"></script>
 <script>

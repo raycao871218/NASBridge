@@ -3,7 +3,7 @@ import threading
 from typing import Annotated
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, field_validator
 
@@ -16,6 +16,7 @@ class Website(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=40)
     url: str = Field(min_length=1, max_length=2048)
+    image_url: str | None = Field(default=None, max_length=2048)
 
     @field_validator("name")
     @classmethod
@@ -24,6 +25,11 @@ class Website(BaseModel):
         if not value:
             raise ValueError("请填写网站名称")
         return value
+
+    @field_validator("image_url")
+    @classmethod
+    def clean_image_url(cls, value):
+        return cls.clean_url(value) if value else None
 
     @field_validator("url")
     @classmethod
@@ -67,11 +73,37 @@ def get_sites():
 
 
 @router.put("/sites")
-def update_sites(body: Update):
+def update_sites(body: Update, request: Request):
+    check_origin(request)
     with _lock:
         state = load_state()
         if body.expected_revision != state["revision"]:
             raise HTTPException(409, "网站配置已被其他页面修改，请重新加载首页后再试")
-        updated = {"revision": state["revision"] + 1, "sites": [site.model_dump() if site else None for site in body.sites]}
+        updated = {"revision": state["revision"] + 1, "sites": [site.model_dump(exclude_none=True) if site else None for site in body.sites]}
         save_state(updated)
         return JSONResponse(updated, headers={"Cache-Control": "no-store"})
+
+
+def check_origin(request):
+    origin = request.headers.get("origin")
+    if origin:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in ("http", "https") or parsed.netloc != request.headers.get("host"):
+            raise HTTPException(403, "不接受跨站请求")
+
+
+class MetadataRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=1, max_length=2048)
+
+    @field_validator("url")
+    @classmethod
+    def clean_url(cls, value):
+        return Website.clean_url(value)
+
+
+@router.post("/metadata")
+async def website_metadata(body: MetadataRequest, request: Request):
+    check_origin(request)
+    from .home_metadata import read_metadata
+    return JSONResponse(await read_metadata(body.url), headers={"Cache-Control": "no-store"})
