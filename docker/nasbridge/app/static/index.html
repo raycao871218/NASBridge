@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
+  <link rel="stylesheet" href="/static/home.css?v=20261021">
     <style>
     :root { color-scheme:dark; --bg:#fcf6e8; --surface:#fffcf4; --surface-2:#eee9df; --surface-3:#f4efe5; --line:#aaa0a6; --line-soft:#d8cec3; --text:#3b3a49; --muted:#706b75; --green:#52745f; --yellow:#916524; --red:#a34d46; --blue:#4d669d; --accent:#4d669d; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -199,7 +200,8 @@
     <div class="topbar-actions"><button onclick="load()">刷新数据</button></div>
   </header>
   <nav class="view-tabs" role="tablist" aria-label="功能模块">
-    <button class="view-tab active" role="tab" aria-selected="true" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
+    <button class="view-tab active" role="tab" aria-selected="true" data-view-target="homeView" onclick="switchView('homeView',this)">首页</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="rhinoView" onclick="switchView('rhinoView',this)">每日任务</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="videosView" onclick="switchView('videosView',this)">视频</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="opsView" onclick="switchView('opsView',this)">证书与反向代理</button>
@@ -209,6 +211,13 @@
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="geofenceView" onclick="switchView('geofenceView',this)">地理围栏</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="androidSetupView" onclick="switchView('androidSetupView',this)">App 扫码配置</button>
   </nav>
+
+  <section id="homeView" class="view active" aria-label="首页">
+    <div class="section-heading home-intro"><div><h2>常用网站</h2><p>把常去的地方，安放在鸟巢。点击卡片，在新标签页打开。</p></div></div>
+    <div class="section-actions"><span class="muted small">6 个专属位置 · 配置保存在 NAS</span><button id="homeReload" type="button">重新加载</button></div>
+    <p id="homeStatus" class="status-line" role="status"></p>
+    <div id="homeSites" class="home-sites"></div>
+  </section>
 
   <section id="androidSetupView" class="view">
     <div class="section-heading"><div><h2>App 扫码配置</h2><p>填写一次，生成二维码，手机确认导入后即可使用。</p></div></div>
@@ -318,7 +327,7 @@
       <div class="section-actions"><button id="smsPrev">上一页</button><span id="smsPage" class="muted small"></span><button id="smsNext">下一页</button></div>
     </section>
   </section>
-  <section id="mihomoView" class="view active">
+  <section id="mihomoView" class="view">
     <div class="section-heading"><div><h2>Mihomo 代理</h2><p>查看代理是否在线、哪些应用正在使用代理，以及实时连接和流量。</p></div></div>
     <section class="panel">
       <div class="panel-header">
@@ -485,6 +494,17 @@
     <button id="confirmDeleteProxy" class="danger" onclick="confirmDeleteReverseProxy()">确认删除</button>
   </div>
 </dialog>
+<dialog id="homeSiteDialog" aria-labelledby="homeSiteTitle">
+  <h2 id="homeSiteTitle">添加常用网站</h2>
+  <form id="homeSiteForm">
+    <label class="field">网站名称<input id="homeSiteName" required maxlength="40" placeholder="例如：我的相册" autocomplete="off"></label>
+    <label class="field">网站地址<input id="homeSiteUrl" required maxlength="2048" inputmode="url" placeholder="https://example.com" autocomplete="off" spellcheck="false"></label>
+    <p class="muted small">支持 HTTP、HTTPS 和内网地址；省略协议时默认使用 HTTPS。</p>
+    <p id="homeSiteError" class="error" role="status"></p>
+    <div class="action-row"><button id="homeSiteRemove" class="danger" type="button" hidden>移除网站</button><button id="homeSiteCancel" type="button">取消</button><button class="primary" type="submit">保存网站</button></div>
+  </form>
+</dialog>
+<script src="/static/home.js?v=20261021"></script>
 <script src="/static/daily-task-control.js?v=20261016"></script>
 <script src="/static/daily-task-progress.js?v=20261015"></script>
 <script>

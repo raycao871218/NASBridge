@@ -1,0 +1,69 @@
+// Browser integration test with an isolated in-memory API; never contacts a NAS.
+const {chromium}=require('playwright');
+const http=require('node:http'), fs=require('node:fs'), path=require('node:path'), assert=require('node:assert/strict');
+const root=path.join(__dirname,'app','static');
+(async()=>{
+ const server=http.createServer((req,res)=>{
+  const pathname=new URL(req.url,'http://localhost').pathname;
+  const file=pathname==='/'?'index.html':pathname.replace(/^\/static\//,'');
+  const resolved=path.resolve(root,file);
+  if(!resolved.startsWith(root+path.sep)){res.writeHead(404).end();return;}
+  try{res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream');res.end(fs.readFileSync(resolved));}catch{res.writeHead(404).end();}
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ let browser;
+ try{
+  browser=await chromium.launch({headless:true,...(process.env.HOME_TEST_BROWSER?{channel:process.env.HOME_TEST_BROWSER}:{})});
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  let state={revision:0,sites:Array(6).fill(null)}, failure=false, loadFailure=false;
+  await page.route('**/api/**',async route=>{
+   if(!route.request().url().endsWith('/api/home/sites'))return route.fulfill({json:{}});
+   if(route.request().method()==='PUT'){
+    if(failure)return route.fulfill({status:409,json:{detail:'网站配置已被其他页面修改，请重新加载首页后再试'}});
+    const body=route.request().postDataJSON();assert.equal(body.expected_revision,state.revision);
+    state={revision:state.revision+1,sites:body.sites};
+   }else if(loadFailure)return route.fulfill({status:503,json:{detail:'暂时不可用'}});
+   return route.fulfill({json:state});
+  });
+  const url=`http://127.0.0.1:${server.address().port}`;
+  await page.goto(url);
+  await page.locator('.site-add').first().waitFor();
+  assert.equal(await page.locator('.view.active').getAttribute('id'),'homeView');
+  assert.equal(await page.locator('.site-add').count(),6);
+  await page.locator('.site-add').first().click();
+  assert.equal(await page.locator('#homeSiteRemove').isVisible(),false);
+  await page.locator('#homeSiteName').fill('我的相册');
+  await page.locator('#homeSiteUrl').fill('javascript:alert(1)');
+  await page.locator('#homeSiteForm button[type=submit]').click();
+  assert.equal(state.revision,0);assert.match(await page.locator('#homeSiteError').textContent(),/有效/);
+  await page.locator('#homeSiteUrl').fill('photos.example.com');
+  await page.locator('#homeSiteForm button[type=submit]').click();
+  await page.locator('#homeSiteDialog').waitFor({state:'hidden'});
+  const link=page.locator('.home-site a').first();
+  assert.equal(await link.getAttribute('href'),'https://photos.example.com');assert.equal(await link.getAttribute('target'),'_blank');
+  await page.reload();await page.locator('.site-edit').waitFor();
+  assert.equal(await page.locator('.home-site strong').textContent(),'我的相册');
+  await page.locator('.site-edit').click();await page.locator('#homeSiteName').fill('<img src=x onerror=alert(1)>');
+  await page.locator('#homeSiteForm button[type=submit]').click();await page.locator('#homeSiteDialog').waitFor({state:'hidden'});
+  assert.equal(await page.locator('.home-site img').count(),0);
+  failure=true;await page.locator('.site-edit').click();await page.locator('#homeSiteForm button[type=submit]').click();
+  await page.getByText('网站配置已被其他页面修改，请重新加载首页后再试',{exact:true}).waitFor();
+  assert.equal(await page.locator('#homeSiteDialog').isVisible(),true);failure=false;
+  await page.locator('#homeSiteCancel').click();
+  await page.locator('[data-view-target=mihomoView]').click();await page.reload();
+  assert.equal(await page.locator('.view.active').getAttribute('id'),'mihomoView');
+  await page.locator('[data-view-target=homeView]').click();
+  await page.locator('.site-edit').click();await page.locator('#homeSiteName').fill('我的相册');
+  await page.locator('#homeSiteForm button[type=submit]').click();await page.locator('#homeSiteDialog').waitFor({state:'hidden'});
+  const output=path.join(__dirname,'..','..','artifacts');fs.mkdirSync(output,{recursive:true});
+  await page.screenshot({path:path.join(output,'home-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:path.join(output,'home-mobile.png'),fullPage:true});
+  await page.locator('.site-edit').click();await page.locator('#homeSiteRemove').click();await page.locator('#homeSiteDialog').waitFor({state:'hidden'});
+  assert.equal(await page.locator('.site-add').count(),6);
+  loadFailure=true;await page.locator('#homeReload').click();await page.getByText(/加载失败：暂时不可用/).waitFor();
+  loadFailure=false;await page.locator('#homeReload').click();await page.locator('#homeStatus:empty').waitFor({state:'attached'});
+  console.log('PASS: six slots, default home, validation, save/reload, safe text, conflict, tab restoration, mobile layout, removal, load failure/retry');
+ }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
+})().catch(error=>{console.error(error);process.exitCode=1;});
