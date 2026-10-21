@@ -53,6 +53,17 @@ class HomeTest(unittest.TestCase):
         self.assertEqual(self.client.put("/api/home/sites", json=body).status_code, 422)
         self.assertEqual(self.state["revision"], 0)
 
+    def test_cover_preference_persists_and_rejects_unknown_mode(self):
+        for mode in ("identity", "screenshot"):
+            body = self.payload()
+            body["expected_revision"] = self.state["revision"]
+            body["sites"][0]["cover_mode"] = mode
+            response = self.client.put("/api/home/sites", json=body)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(self.client.get("/api/home/sites").json()["sites"][0]["cover_mode"], mode)
+        body["sites"][0]["cover_mode"] = "unknown"
+        self.assertEqual(self.client.put("/api/home/sites", json=body).status_code, 422)
+
     def test_concurrent_edits_reject_stale_revision(self):
         with ThreadPoolExecutor(max_workers=2) as pool:
             codes = list(pool.map(lambda _: self.client.put("/api/home/sites", json=self.payload()).status_code, range(2)))

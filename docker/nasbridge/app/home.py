@@ -1,6 +1,6 @@
 """Six shared website shortcuts, persisted with the NAS state store."""
 import threading
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
@@ -18,6 +18,7 @@ class Website(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     url: str = Field(min_length=1, max_length=2048)
     image_url: str | None = Field(default=None, max_length=2048)
+    cover_mode: Literal["identity", "screenshot"] | None = None
 
     @field_validator("name")
     @classmethod
