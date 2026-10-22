@@ -629,6 +629,11 @@ def parse_nginx_reverse_proxies(nginx_dump: str) -> list[dict[str, Any]]:
             continue
         if block is None:
             continue
+        if line.startswith("#"):
+            if line.startswith("# nasbridge-service-name:"):
+                block["service_name"] = line.partition(":")[2].strip()
+                block["service_name_source"] = "config"
+            continue
         listen_match = re.match(r"listen\s+([^;]+);", line)
         if listen_match:
             value = listen_match.group(1).strip()
@@ -687,6 +692,8 @@ def remote_ssh_client(settings: dict[str, Any]) -> paramiko.SSHClient:
 def label_reverse_proxies(items: list[dict[str, Any]], catalog: dict[str, Any]) -> list[dict[str, Any]]:
     hosts = {str(item.get('name', '')).lower(): str(item.get('ip', '')) for item in catalog.get('zt_ip', [])}
     for item in items:
+        if item.get('service_name_source') == 'config' and item.get('service_name'):
+            continue
         port = item.get('remote_port')
         upstream_hosts = {urlparse(url).hostname for url in item.get('proxy_pass', [])}
         names = set()
@@ -858,6 +865,11 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
     if len(entries) != 1 or len(entries[0].get("server_name", [])) != 1 or len(entries[0].get("proxy_pass", [])) != 1:
         raise HTTPException(status_code=409, detail="此配置包含多个域名或后端，暂不支持单独编辑")
     entry = entries[0]
+    service_name = None
+    if "name" in payload:
+        service_name = str(payload["name"]).strip()
+        if not service_name or len(service_name) > 100 or any(ord(char) < 32 or ord(char) == 127 for char in service_name):
+            raise HTTPException(status_code=400, detail="服务名称须为 1–100 个字符，且不能包含换行或控制字符")
     server_name = str(payload.get("server_name", entry["server_name"][0])).strip()
     upstream = str(payload.get("upstream", entry["proxy_pass"][0])).strip().replace("：", ":")
     if upstream and "://" not in upstream:
@@ -886,6 +898,12 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
             raise HTTPException(status_code=409, detail="配置文件包含多个域名或后端指令，拒绝整体替换")
         updated = name_pattern.sub(lambda match: f"{match.group(1)}{server_name};", content)
         updated = upstream_pattern.sub(lambda match: f"{match.group(1)}{upstream};", updated)
+        if service_name is not None:
+            marker = f"    # nasbridge-service-name: {service_name}\n"
+            updated = re.sub(r"(?m)^[ \t]*# nasbridge-service-name:[^\r\n]*(?:\r?\n|$)", "", updated)
+            updated = re.sub(r"(?m)^(\s*server\s*\{[^\S\r\n]*\r?\n)", lambda match: match.group(1) + marker, updated, count=1)
+            if marker not in updated:
+                raise HTTPException(status_code=409, detail="无法定位服务配置块，拒绝修改名称")
         if updated == content:
             return {"status": "updated", "verified": True, "message": "配置没有变化", "id": proxy_id, "server_name": server_name, "upstream": upstream}
         temporary = _sftp_write_temp(sftp, remote_file, updated.encode("utf-8"), 0o644)
@@ -902,7 +920,8 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
             client.exec_command(f"cp -a -- {shlex.quote(backup_file)} {shlex.quote(remote_file)} && nginx -t && systemctl reload nginx", timeout=30)[1].channel.recv_exit_status()
             raise RuntimeError(f"修改失败，已尝试恢复原配置：{output}")
         verified = [item for item in read_remote_reverse_proxies(settings) if item.get("id") == proxy_id]
-        if not any(server_name in item.get("server_name", []) and upstream in item.get("proxy_pass", []) for item in verified):
+        if not any(server_name in item.get("server_name", []) and upstream in item.get("proxy_pass", [])
+                   and (service_name is None or item.get("service_name") == service_name) for item in verified):
             raise RuntimeError("重载后未回读到修改后的规则，请检查远端配置")
         return {"status": "updated", "verified": True, "message": "反向代理已修改并验证", "id": proxy_id, "server_name": server_name, "upstream": upstream, "backup": backup_file, "remote_output": output}
     finally:
