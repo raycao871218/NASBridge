@@ -225,9 +225,14 @@
       <form id="androidSetupForm" autocomplete="off">
         <div class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))">
           <label class="field">家庭 Wi-Fi 名称（可留空）<input id="setupSsid" maxlength="128" placeholder="留空，手机扫码时自动读取"></label>
-          <label class="field">内网 NAS 地址（含端口）<input id="setupLocal" type="text" inputmode="url" required maxlength="512" placeholder="192.168.1.10:18080"></label>
           <label class="field">外网 NAS 地址（含端口）<input id="setupPublic" type="text" inputmode="url" required maxlength="512" placeholder="nas.example.com:18099"></label>
         </div>
+        <fieldset style="margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:10px">
+          <legend>内网 NAS 地址（从上到下优先，最多 8 个）</legend>
+          <div id="setupLocalList"></div>
+          <button id="setupAddLocal" type="button" style="margin-top:10px">添加内网地址</button>
+          <p class="small muted" style="margin-top:8px">每项可填写独立端口。新版 App 在 Wi-Fi、移动网络或 VPN 下按顺序检测，第一个可达即使用；全部不可达时使用外网地址。旧版 App 仅使用第一项。</p>
+        </fieldset>
         <label class="check" style="margin-top:16px"><input id="setupPresence" type="checkbox" checked>包含 HA 在家状态同步配置</label>
         <div id="setupPresenceFields" class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));margin-top:12px">
           <label class="field">HA 地址（HTTPS，含端口）<input id="setupHaUrl" type="text" inputmode="url" maxlength="512" placeholder="ha.example.com:8123"></label>
@@ -847,7 +852,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/zerotier.js?v=20261009-defaults"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
-<script src="/static/android-setup.js?v=20261019-auto-wifi"></script>
+<script src="/static/android-setup.js?v=20261022-local-priority"></script>
 <script src="/static/view-state.js?v=20261009-tab-map"></script>
 </body>
 </html>

@@ -98,6 +98,37 @@ class AndroidSetupTest(unittest.TestCase):
     def save(self, changes=None):
         return self.client.put("/api/android-setup/config", json={**self.data, "expected_revision": 0, **(changes or {})})
 
+    def test_ordered_local_addresses_saved_and_encoded(self):
+        network = {"ssid": "Home", "local_urls": ["192.0.2.2:18080", "https://nas.test:8443", "192.0.2.2:18080/"],
+                   "public_url": "public.test"}
+        data = {**self.data, "network": network, "include_geofence": False}
+        saved = self.save(data)
+        self.assertEqual(saved.status_code, 200)
+        expected = ["http://192.0.2.2:18080/", "https://nas.test:8443/"]
+        self.assertEqual(saved.json()["settings"]["network"]["local_urls"], expected)
+        self.assertEqual(saved.json()["settings"]["network"]["local_url"], expected[0])
+        self.assertEqual(self.client.get("/api/android-setup/config").json(), saved.json())
+        with patch.object(android_setup.qrcode.QRCode, "add_data") as capture:
+            self.assertEqual(self.post(data).status_code, 200)
+        encoded = capture.call_args.args[0].removeprefix("NASBRIDGE1:")
+        payload = json.loads(zlib.decompress(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))))
+        self.assertEqual(payload["network"], saved.json()["settings"]["network"])
+
+    def test_invalid_local_address_lists(self):
+        for values in ([], None, ["http://nas.test"] * 9, [1], [""], ["file:///etc/passwd"],
+                       ["http://user:secret@nas.test"], ["nas.test:70000"], ["nas.test/?key=secret"]):
+            with self.subTest(values=values):
+                response = self.post({**self.data, "network": {**self.data["network"], "local_urls": values}})
+                self.assertEqual(response.status_code, 422)
+                self.assertNotIn("secret", response.text)
+
+    def test_legacy_network_has_no_null_list(self):
+        data = {**self.data, "include_geofence": False}
+        payload = android_setup.configuration(android_setup.Setup.model_validate(data))
+        self.assertNotIn("local_urls", payload["network"])
+        self.assertEqual(self.save().status_code, 200)
+        self.assertNotIn("local_urls", self.client.get("/api/android-setup/config").json()["settings"]["network"])
+
     def test_encrypted_profile_survives_reload_and_redacts_token(self):
         initial = self.client.get("/api/android-setup/config")
         self.assertIsNone(initial.json()["settings"])

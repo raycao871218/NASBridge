@@ -55,6 +55,7 @@ Thumbs.db
 *.log.*.*.*.*.*
 
 # NASBridge deployment data, local configuration, and historical snapshots
+/artifacts/
 /docker/nasbridge/.env*
 !/docker/nasbridge/.env.example
 /docker/nasbridge/compose.yaml

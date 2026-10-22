@@ -17,7 +17,7 @@ import qrcode.image.svg
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, JSONResponse
 from cryptography.fernet import Fernet
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictBool, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictBool, ValidationError, field_validator, model_validator
 from qrcode.exceptions import DataOverflowError
 
 router = APIRouter(prefix="/api/android-setup", tags=["android-setup"])
@@ -43,8 +43,26 @@ def service_url(value: str, https_only=False, default_scheme="http"):
 class Network(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     ssid: str = Field(default="", max_length=128)
-    local_url: str = Field(min_length=1, max_length=512)
+    local_url: str = Field(default="", min_length=1, max_length=512)
+    local_urls: list[str] | None = Field(default=None, min_length=1, max_length=8)
     public_url: str = Field(min_length=1, max_length=512)
+
+    @field_validator("local_urls")
+    @classmethod
+    def local_addresses(cls, values):
+        if values is None:
+            raise ValueError("内网地址列表不能为空")
+        if any(not value or len(value) > 512 for value in values):
+            raise ValueError("内网地址长度无效")
+        return list(dict.fromkeys(service_url(value) for value in values))
+
+    @model_validator(mode="after")
+    def legacy_address(self):
+        if self.local_urls:
+            self.local_url = self.local_urls[0]
+        elif not self.local_url:
+            raise ValueError("请填写至少一个内网地址")
+        return self
 
     @field_validator("ssid")
     @classmethod
@@ -96,7 +114,7 @@ def profile_directory():
 
 
 def _plain(data):
-    result = data.model_dump(exclude={"presence", "expected_revision"})
+    result = data.model_dump(exclude={"presence", "expected_revision"}, exclude_none=True)
     result["presence"] = None if data.presence is None else {
         **data.presence.model_dump(exclude={"token"}), "token": data.presence.token.get_secret_value()}
     return result
@@ -205,7 +223,7 @@ async def save_profile(request: Request):
 
 
 def configuration(data: Setup):
-    result = {"type": "nasbridge.android.config", "version": 1, "network": data.network.model_dump()}
+    result = {"type": "nasbridge.android.config", "version": 1, "network": data.network.model_dump(exclude_none=True)}
     if data.presence:
         result["presence"] = {**data.presence.model_dump(exclude={"token"}),
                               "token": data.presence.token.get_secret_value()}
