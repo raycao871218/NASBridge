@@ -98,7 +98,7 @@ def download():
     archive = videos / ".rhino-finance-archive.txt"
     known = set(re.findall(r"^youtube\s+(\S+)", archive.read_text(encoding="utf-8"), re.M)) if archive.exists() else set()
     pending = [video_id for video_id in feed_entries(known) if video_id not in known]
-    event('discover', 'success', f'发现 {len(pending)} 部待下载视频')
+    event('discover', 'success', f'发现 {len(pending)} 部待下载视频', pending_count=len(pending))
     event('download', message=f'待下载 {len(pending)} 部视频')
     for video_id in pending:
         event('download', message='正在下载视频与音频', item=video_id)

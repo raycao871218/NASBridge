@@ -1,0 +1,6 @@
+[Unit]
+Description=Observe whether the server appears safe to shut down
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/shutdown-readiness-monitor

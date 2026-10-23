@@ -1,0 +1,11 @@
+[Unit]
+Description=Wait for the first Rhino run and perform one pending retry
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=caobowen
+WorkingDirectory=/home/caobowen/rhino-finance
+ExecStart=/home/caobowen/rhino-finance/.venv/bin/python /home/caobowen/rhino-finance/rhino-retry.py
+ExecStopPost=/home/caobowen/rhino-finance/.venv/bin/python /home/caobowen/rhino-finance/rhino-retry.py --finalize-service
+TimeoutStartSec=13h

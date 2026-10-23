@@ -1,0 +1,12 @@
+[Unit]
+Description=Retry Rhino Finance once at 11:00 Asia/Shanghai if 10:00 found no updates
+
+[Timer]
+OnCalendar=Tue..Sat *-*-* 11:00:00 Asia/Shanghai
+OnBootSec=2min
+Persistent=false
+AccuracySec=1s
+Unit=rhino-retry.service
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,7 @@
 # 阶段进度与结束状态
 
+新增 11 点重试及关机保护，见 [部署与行为说明](../shutdown/README.md)。`rhino_schedule.py` 是 runner 的必要依赖，须与四个原有 Python 文件一并安装；service/timer 模板也纳入本目录。
+
 执行端原目录保留 `.venv`、`rhino_db.py`、数据库及 YouTube 本地凭据。将本目录四个 Python 文件部署到原任务目录；从原脚本添加结构化事件，概要与分析框架仍由原有一次 Codex 执行共同处理，没有声称能够区分这一次调用内部的细节。
 
 先备份旧脚本并确认服务未运行。使用现有连接运行 `rhino_db.connect()` 创建原表，再执行 `rhino-run.py` 中的 `PROGRESS_SQL` 创建 `rhino_daily_progress` 表；该表以 `run_id` 关联运行记录，不修改现有数据格式。在 systemd 原服务添加 `progress-stop.conf` drop-in，按本地任务路径调整 `ExecStopPost`，再 `systemctl daemon-reload`。不得覆盖原服务、timer、Compose 或凭据。安装新版 `../daily-task-control.py` 到原 SSH 强制命令位置。

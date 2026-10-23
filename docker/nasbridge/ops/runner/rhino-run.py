@@ -17,6 +17,7 @@ from pathlib import Path
 
 import rhino_db
 from rhino_events import PREFIX
+from rhino_schedule import record_discovery
 
 HERE = Path(__file__).resolve().parent
 PYTHON = HERE / '.venv/bin/python'
@@ -78,8 +79,10 @@ class Tracker:
             row.pop('percent',None)
         row.setdefault('started_at', stamp())
         row.update(status=event.get('state', 'running'), message=str(event.get('message', ''))[:500])
-        for key in ('item', 'percent'):
+        for key in ('item', 'percent', 'pending_count'):
             if key in event: row[key] = event[key]
+        if stage == 'discover' and row['status'] == 'success' and isinstance(event.get('pending_count'), int):
+            record_discovery(self.payload['started_at'], event['pending_count'])
         if row['status'] != 'running': row['finished_at'] = stamp()
         self.last_activity = time.monotonic()
         self.data.update(current_stage=stage, last_progress_at=stamp())

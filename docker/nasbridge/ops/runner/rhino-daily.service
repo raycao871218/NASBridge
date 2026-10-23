@@ -1,0 +1,12 @@
+[Unit]
+Description=Rhino Finance daily video, transcript, summary, and skill update
+After=network-online.target mihomo.service mnt-azkaban\x2dhome.mount
+Wants=network-online.target
+RequiresMountsFor=/mnt/azkaban-home
+
+[Service]
+Type=oneshot
+User=caobowen
+WorkingDirectory=/home/caobowen/rhino-finance
+ExecStart=/home/caobowen/rhino-finance/.venv/bin/python /home/caobowen/rhino-finance/rhino-run.py
+TimeoutStartSec=6h
