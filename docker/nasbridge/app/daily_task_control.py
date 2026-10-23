@@ -47,12 +47,18 @@ def manual_control_status(metrics, service=None):
         if not data.get('available', True):
             raise HTTPException(503, '无法确认执行端状态，请稍后刷新')
         running = data['active_state'] in BUSY_STATES
+        retry = data.get('retry') or {'available': False, 'status': 'unknown'}
+        protected = True if running else None
+        if retry.get('available'):
+            protected = running or retry.get('service_active', False) or retry.get('status') in {'waiting','retrying'}
         return {'show': True, 'can_trigger': not running, 'running': running,
+                'retry': retry, 'shutdown_protected': protected, 'observed_at': data.get('observed_at'),
                 'message': '任务正在执行，请等待运行结果' if running else (
                     '今天的任务已成功，可再次手动执行' if metrics.get('today_success_runs', 0)
                     else '今天还没有成功记录，可手动执行一次每日任务')}
     except HTTPException as error:
-        return {'show': True, 'can_trigger': False, 'message': error.detail}
+        return {'show': True, 'can_trigger': False, 'message': error.detail,
+                'retry': {'available': False, 'status': 'unknown'}, 'shutdown_protected': None}
 
 
 def start_daily_task():

@@ -11,6 +11,32 @@ UNIT = 'rhino-daily.service'
 BUSY = {'active', 'activating', 'reloading', 'deactivating'}
 
 
+def retry_status():
+    """Expose only scheduling metadata; never return arbitrary executor file contents."""
+    try:
+        result = subprocess.run(['/usr/bin/systemctl', 'show', 'rhino-retry.service',
+                                 '-p', 'LoadState', '-p', 'ActiveState'],
+                                capture_output=True, text=True, timeout=3, check=True)
+        unit = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+        if unit.get('LoadState') != 'loaded' or unit.get('ActiveState') not in BUSY | {'inactive', 'failed'}:
+            raise ValueError('Unknown retry service')
+        data = {'available': True, 'status': 'none', 'service_active': unit['ActiveState'] in BUSY}
+        path = Path.home()/'rhino-finance/state/retry.json'
+        try:
+            if path.stat().st_size > 4096: raise ValueError('Retry state too large')
+            state = json.loads(path.read_text())
+        except FileNotFoundError:
+            return data
+        if not isinstance(state, dict) or state.get('status') not in {'waiting','retrying','completed','cancelled'}:
+            raise ValueError('Invalid retry state')
+        for key in ('status','date','retry_at','attempted_at','finished_at','service_result'):
+            if isinstance(state.get(key), str): data[key] = state[key][:100]
+        if type(state.get('returncode')) is int: data['returncode'] = state['returncode']
+        return data
+    except Exception:
+        return {'available': False, 'status': 'unknown'}
+
+
 def control(action):
     if action not in {'status', 'start'}:
         return {'available': False}
@@ -24,6 +50,7 @@ def control(action):
     data = {'available': True, 'active_state': state['ActiveState'], 'observed_at':observed_at}
     data.update(result=state.get('Result'), main_pid=int(state.get('MainPID', '0')),
                 invocation_id=state.get('InvocationID', ''), boot_id=Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+    data['retry'] = retry_status()
     # systemd prints executor-local UTC timestamps on the configured runner host.
     match=re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}',state.get('ExecMainStartTimestamp',''))
     if match and state['ExecMainStartTimestamp'].endswith(' UTC'):

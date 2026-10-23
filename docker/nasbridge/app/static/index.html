@@ -431,6 +431,12 @@
       <div class="panel-header"><div><h2>手动执行每日任务</h2><p id="dailyTaskManualHint" class="muted small">正在确认任务状态…</p></div><button id="dailyTaskRun" type="button" class="primary" disabled>手动执行</button></div>
       <p id="dailyTaskRunStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
+    <section id="dailyTaskRetry" class="panel" aria-live="polite">
+      <h2 id="dailyTaskRetryTitle">正在读取自动重试状态…</h2>
+      <p id="dailyTaskRetryDetail" class="muted small"></p>
+      <p id="dailyTaskRetryTime" class="muted small"></p>
+      <p id="dailyTaskShutdownGuard" class="status-line"></p>
+    </section>
     <section class="panel" id="dailyTaskProgressPanel" hidden aria-live="polite"></section>
     <section class="panel" id="latestUnreadSummary" hidden></section>
     <section class="panel">
@@ -525,7 +531,7 @@
   </form>
 </dialog>
 <script src="/static/home.js?v=20261021-identity"></script>
-<script src="/static/daily-task-control.js?v=20261016"></script>
+<script src="/static/daily-task-control.js?v=20261023-retry-status"></script>
 <script src="/static/daily-task-progress.js?v=20261015"></script>
 <script src="/static/source-aliases.js?v=20261021"></script>
 <script>
