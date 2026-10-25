@@ -481,7 +481,7 @@
     <section class="panel">
       <div class="panel-header"><h2>网络与成员</h2><button onclick="loadZTNetworks(true)">重新读取网络和成员</button></div>
       <label class="field">网络<select id="ztNetwork" onchange="clearZTMembers();loadZTMembers()"><option value="">请先读取网络</option></select></label>
-      <div class="action-row"><button onclick="loadZTMembers()">读取成员</button><a href="/api/zerotier/admin" target="_blank" rel="noopener">打开原管理界面</a></div>
+      <div class="action-row"><button onclick="loadZTMembers()">读取成员</button><button onclick="downloadZTPlanet()">下载 planet</button><a href="/api/zerotier/admin" target="_blank" rel="noopener">打开原管理界面</a></div>
       <p id="ztStatus" class="status-line" role="status" aria-live="polite">使用服务器现有控制器，点击连接开始。</p>
       <pre id="ztConfig" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
       <div id="ztMembers" class="table-scroll">请选择网络并读取成员</div>
@@ -855,7 +855,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
-<script src="/static/zerotier.js?v=20261009-defaults"></script>
+<script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
 <script src="/static/android-setup.js?v=20261022-local-priority"></script>

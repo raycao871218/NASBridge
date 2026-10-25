@@ -144,6 +144,8 @@ docker run --rm --network none \
 
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
 
+ZeroTier 页的“下载 planet”通过现有 SSH 连接读取控制器 `ztncui` 容器中的 `/var/lib/zerotier-one/planet`，浏览器保存的文件名为 `planet`。无需选择网络，也无需新增配置。下载的是控制器当前使用的文件；若需要自建 Planet，请先在控制器完成生成和替换。接口 `GET /api/zerotier/planet` 返回二进制附件，文件不存在或读取失败时会在页面提示。
+
 ## App 扫码配置
 
 支持通过“添加内网地址”增加最多 8 个候选地址，可删除、上移、下移调整优先级。保存和二维码使用 `network.local_urls` 数组保留顺序，同时保留 `local_url` 为第一项以兼容旧客户端。麻雀会 0.16.9+ 在 Wi-Fi、移动网络或 VPN 下都先依次检查内网 HTTP 连接，全部不可达后才使用外网；不以 SSID 或 ping 作为前置条件。省略协议时内网使用 HTTP，外网使用 HTTPS，各地址可分别带端口。
