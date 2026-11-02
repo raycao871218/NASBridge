@@ -65,7 +65,7 @@ function installTabKeys(host){
     if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     const tabs=[...host.querySelectorAll('[role="tab"]')],current=tabs.indexOf(document.activeElement);if(current<0)return;
     event.preventDefault();let next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(current+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
-    tabs[next].click();
+    const target=tabs[next];target.click();document.getElementById(target.id)?.focus();
   };
 }
 function activateMihomoTab(id){
