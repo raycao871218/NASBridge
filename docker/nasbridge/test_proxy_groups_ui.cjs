@@ -46,11 +46,9 @@ const {chromium}=require(process.env.NASBRIDGE_PLAYWRIGHT||'playwright');
   assert.equal(await selector.locator('.proxy-node-choice').nth(1).isDisabled(),true);
   failRead=false;await page.getByRole('button',{name:'刷新节点'}).click();await page.getByText('已更新',{exact:true}).waitFor();
   for(const width of [1100,390]){await page.setViewportSize({width,height:850});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No horizontal overflow');}
-  await page.getByRole('tab',{name:'当前连接',exact:true}).click();
-  assert.equal(await page.locator('#mihomoNodesPanel').isVisible(),false);
-  assert.equal(await page.locator('#mihomoConnectionsPanel').isVisible(),true);
   await page.getByRole('tab',{name:'运行状态',exact:true}).click();
   assert.equal(await page.locator('#mihomoStatusPanel').isVisible(),true);
+  assert.equal(await page.locator('#mihomoConnectionsPanel').isVisible(),true,'Connections are in the default status view');
   await page.reload();
   assert.equal(await page.locator('#mihomoNodesPanel').isVisible(),false,'Reload defaults to status');
   assert.deepEqual(errors,[]);

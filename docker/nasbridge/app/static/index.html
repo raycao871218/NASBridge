@@ -192,7 +192,7 @@
   </style>
   <link rel="icon" href="/static/nest.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/crayon.css?v=20261019">
-<link rel="stylesheet" href="/static/proxy-groups.css?v=20261102-tabs">
+<link rel="stylesheet" href="/static/proxy-groups.css?v=20261102-layout">
 </head>
 <body>
 <main>
@@ -338,10 +338,10 @@
     <div class="mihomo-tabs" role="tablist" aria-label="Mihomo 功能">
       <button id="mihomoStatusTab" role="tab" aria-selected="true" aria-controls="mihomoStatusPanel" data-mihomo-panel="mihomoStatusPanel">运行状态</button>
       <button id="mihomoNodesTab" role="tab" aria-selected="false" aria-controls="mihomoNodesPanel" data-mihomo-panel="mihomoNodesPanel" tabindex="-1">代理节点</button>
-      <button id="mihomoConnectionsTab" role="tab" aria-selected="false" aria-controls="mihomoConnectionsPanel" data-mihomo-panel="mihomoConnectionsPanel" tabindex="-1">当前连接</button>
       <button id="mihomoConfigTab" role="tab" aria-selected="false" aria-controls="mihomoConfigPanel" data-mihomo-panel="mihomoConfigPanel" tabindex="-1">配置</button>
     </div>
     <div id="mihomoStatusPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoStatusTab">
+    <div class="mihomo-summary">
     <section class="panel">
       <div class="panel-header">
         <div><h2>Mihomo Docker 服务</h2><p class="muted small">容器状态与快捷操作</p></div>
@@ -357,15 +357,7 @@
     </section>
     <section class="grid" id="metrics"></section>
     </div>
-    <div id="mihomoNodesPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoNodesTab" hidden>
-    <section class="panel" aria-label="代理节点管理">
-      <div class="panel-header"><div><h2>代理节点</h2><p class="muted small">选择代理组的出口节点；自动组可固定节点或恢复自动选择。</p></div><button id="proxyGroupsRefresh" type="button">刷新节点</button></div>
-      <p id="proxyGroupsStatus" class="status-line" role="status" aria-live="polite"></p>
-      <div id="proxyGroups">进入此页后读取代理组…</div>
-      <p class="muted small">切换影响新连接，已有连接不会强制断开。延迟为最近测速结果，点击节点旁的“测速”更新。</p>
-    </section>
-    </div>
-    <div id="mihomoConnectionsPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoConnectionsTab" hidden>
+    <div id="mihomoConnectionsPanel" class="mihomo-connections">
     <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源地址、目标地址、路由结果和流量。</p></div></div><div class="action-row"><label>来源筛选 <select id="sourceFilter" onchange="renderSourceConnections()"><option value="">全部来源</option></select></label><span id="sourceTraffic" class="muted small" role="status"></span></div>
       <p class="muted small">统计当前活动连接的累计流量，连接结束后不再计入。</p>
       <div id="connections" class="table-scroll">加载中…</div>
@@ -378,6 +370,15 @@
           <button type="submit">保存别名</button>
         </form><p id="sourceAliasStatus" role="status"></p><div id="sourceAliasRules"></div>
       </details></section>
+    </div>
+    </div>
+    <div id="mihomoNodesPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoNodesTab" hidden>
+    <section class="panel" aria-label="代理节点管理">
+      <div class="panel-header"><div><h2>代理节点</h2><p class="muted small">选择代理组的出口节点；自动组可固定节点或恢复自动选择。</p></div><button id="proxyGroupsRefresh" type="button">刷新节点</button></div>
+      <p id="proxyGroupsStatus" class="status-line" role="status" aria-live="polite"></p>
+      <div id="proxyGroups">进入此页后读取代理组…</div>
+      <p class="muted small">切换影响新连接，已有连接不会强制断开。延迟为最近测速结果，点击节点旁的“测速”更新。</p>
+    </section>
     </div>
     <div id="mihomoConfigPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoConfigTab" hidden>
     <details class="panel" open>
@@ -873,7 +874,7 @@ async function load(){ try { const r=await fetch('/api/overview',{cache:'no-stor
 toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
-<script src="/static/proxy-groups.js?v=20261102-tabs"></script>
+<script src="/static/proxy-groups.js?v=20261102-layout"></script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
