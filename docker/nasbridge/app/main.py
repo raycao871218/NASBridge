@@ -50,6 +50,8 @@ from .aliyun import router as aliyun_router
 app = FastAPI(title="NASBridge", version="0.1.0")
 from .source_aliases import router as source_alias_router, label_connections, read_rules as read_source_aliases
 app.include_router(source_alias_router)
+from .proxy_groups import router as proxy_groups_router
+app.include_router(proxy_groups_router)
 app.include_router(aliyun_router)
 from .zerotier import router as zerotier_router
 app.include_router(zerotier_router)

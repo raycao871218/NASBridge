@@ -159,3 +159,11 @@ ZeroTier 页的“下载 planet”通过现有 SSH 连接读取控制器 `ztncui
 保存接口：`GET /api/android-setup/config` 读取已保存配置（不返回令牌）；`PUT /api/android-setup/config` 保存完整配置及 `expected_revision`，旧版本写入返回 409。首次保存 HA 配置必须填写令牌，之后保存或生成二维码时令牌留空可复用已保存值。取消包含 HA 后保存会移除保存的 HA 配置。配置使用 Fernet 加密，原子替换写入，文件与密钥权限为 0600；保存在数据卷的 `android-setup.enc`、`android-setup.key`，备份和恢复时需同时保留两者。接口沿用 NAS 面板已有访问控制；有访问权限的面板使用者可生成包含已保存令牌的二维码。
 
 家庭 Wi-Fi 名称可留空（或省略 `network.ssid`），由 Android 0.16.1+ 在扫码时申请精确定位权限、读取手机当前已连接的 Wi-Fi，并在导入预览中确认。读取失败可重新读取或手动填写；确认前不会保存。后台不推测手机 SSID，也不读取 Wi-Fi 密码。已填写 SSID 的二维码仍按填写值导入，兼容旧版 App。
+
+### 代理节点管理
+
+在 Mihomo 代理页的“代理节点”中点选出口；自动组点选后会固定该节点，点击“恢复自动”解除固定。LoadBalance 等不支持手动选择的组只读显示。节点卡片显示组内当前选择、节点类型和最近延迟；单节点测速使用固定的 Google 204 检测地址，不会清除自动组的固定选择。面板每 15 秒刷新，离开此栏目不主动轮询；节点列表读取失败时禁用操作，刷新恢复后可继续。选择通过现有 Mihomo 控制器执行，密钥留在服务端，不修改 YAML 或重启容器。控制器的重启持久性取决于 Mihomo 自身的缓存设置。
+
+新增接口：GET /api/mihomo/proxies、PUT /api/mihomo/proxies/selection（group/name）、POST /api/mihomo/proxies/automatic（group）、POST /api/mihomo/proxies/delay（name）。写入前校验代理组类型和成员，切换及恢复自动后回读确认；失败不自动重试。
+
+验证：Python unittest discover -s tests -p test_proxy_groups.py；浏览器回归 node test_proxy_groups_ui.cjs 需要 Playwright 和 Chromium，可通过 NASBRIDGE_PLAYWRIGHT 指定模块、NASBRIDGE_BROWSER 指定浏览器。所有测试使用模拟控制器，不连接生产代理。
