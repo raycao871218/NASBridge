@@ -147,9 +147,11 @@ class MihomoConfigTests(unittest.IsolatedAsyncioTestCase):
 
 class CertificateScriptTests(unittest.TestCase):
     def test_failed_issue_or_deploy_never_advances_success_marker(self):
-        script = Path(__file__).resolve().parents[3] / "src" / "nas_cert_update.sh"
+        script = next((parent / "src" / "nas_cert_update.sh"
+                       for parent in Path(__file__).resolve().parents
+                       if (parent / "src" / "nas_cert_update.sh").is_file()), None)
         bash = "C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else shutil.which("bash")
-        if not script.exists() or not bash or not Path(bash).exists():
+        if script is None or not bash or not Path(bash).exists():
             self.skipTest("requires repository certificate script and Bash")
         harness = '''
 docker() {
