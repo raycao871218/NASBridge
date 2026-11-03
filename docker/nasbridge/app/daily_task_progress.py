@@ -88,4 +88,5 @@ def display_run(row,service):
     if row['status']=='running':
         status,message,_=classify_run(row,service)
         row.update(status=status,status_message=message)
+    row['skill_update']=(row.get('progress') or {}).get('skill_update')
     return row

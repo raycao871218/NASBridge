@@ -81,6 +81,9 @@ class Tracker:
         row.update(status=event.get('state', 'running'), message=str(event.get('message', ''))[:500])
         for key in ('item', 'percent', 'pending_count'):
             if key in event: row[key] = event[key]
+        reason = event.get('skill_reason')
+        if stage in {'summary_skill', 'sync'} and isinstance(reason, str) and reason.strip():
+            self.data['skill_reason'] = ' '.join(reason.split())[:500]
         if stage == 'discover' and row['status'] == 'success' and isinstance(event.get('pending_count'), int):
             record_discovery(self.payload['started_at'], event['pending_count'])
         if row['status'] != 'running': row['finished_at'] = stamp()
@@ -191,9 +194,31 @@ def snapshot(folder, suffix):
     return {p.name:(p.stat().st_size,p.stat().st_mtime_ns) for p in folder.glob('*'+suffix) if p.is_file()}
 
 
-def skill_hash():
-    p=ROOT/'技能/rhino-finance-lens/SKILL.md'
-    return hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
+def skill_snapshot():
+    folder = ROOT / '技能/rhino-finance-lens'
+    return {key: hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+            for key, path in [('framework', folder / 'SKILL.md'),
+                              ('observations', folder / 'references/observations.md')]}
+
+
+def record_skill_update(before, tracker):
+    after = skill_snapshot()
+    def state(key):
+        if after[key] is None:
+            return 'unrecorded'
+        return 'updated' if before[key] != after[key] else 'unchanged'
+    stage = tracker.stage('summary_skill')['status']
+    reason = tracker.data.get('skill_reason')
+    if not reason:
+        reason = ('没有待处理的新原文，本次未进行框架复核' if stage == 'skipped' else
+                  '框架复核已完成，但未记录具体判断原因' if stage == 'success' else
+                  '框架复核未完成，请查看任务阶段和错误信息')
+    tracker.data['skill_update'] = dict(
+        observations_status=state('observations'), framework_status=state('framework'),
+        review_status='completed' if stage == 'success' else 'skipped' if stage == 'skipped' else 'incomplete',
+        reason=reason, recorded_at=stamp())
+    # Preserve the existing database field for older clients.
+    tracker.payload['skill_updated'] = state('framework') == 'updated'
 
 
 def save(payload):
@@ -214,7 +239,7 @@ def main():
     before={}; before_skill=None; failures=[]; status='failed'; message=''
     try:
         before={key:snapshot(ROOT/folder,suffix) for key,folder,suffix in [('video','视频','.mp4'),('transcript','原文','.txt'),('summary','概要','.md')]}
-        before_skill=skill_hash()
+        before_skill=skill_snapshot()
         for filename,label in [('rhino-vm.py','media'),('rhino-postprocess.py','summary')]:
             code=run_stage(filename,tracker)
             payload[label+'_status']='failed' if code else 'success'
@@ -225,7 +250,6 @@ def main():
             after=snapshot(ROOT/folder,suffix)
             payload[key+'_files']=[name for name,meta in after.items() if before[key].get(name)!=meta]
         payload['summary_texts']={name:(ROOT/'概要'/name).read_text(encoding='utf-8') for name in payload['summary_files']}
-        payload['skill_updated']=before_skill!=skill_hash()
         status='failed' if failures else 'success'
         message='；'.join(failures) if failures else '全部阶段已完成'
     except TaskTimeout as error:
@@ -237,6 +261,12 @@ def main():
     finally:
         # Ignore repeated stop signals while persisting the final state.
         signal.signal(signal.SIGTERM,signal.SIG_IGN)
+        if before_skill is not None:
+            try:
+                record_skill_update(before_skill, tracker)
+            except OSError:
+                tracker.data['skill_update'] = dict(observations_status='unrecorded',
+                    framework_status='unrecorded', review_status='incomplete', reason='无法读取分析框架文件，更新状态未记录')
         if status in {'timed_out','interrupted'}:
             field='media_status' if tracker.current in {'check','discover','download','transcribe'} else 'summary_status'
             payload[field]=status

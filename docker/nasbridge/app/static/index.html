@@ -554,7 +554,7 @@
 </dialog>
 <script src="/static/home.js?v=20261021-identity"></script>
 <script src="/static/daily-task-control.js?v=20261023-retry-status"></script>
-<script src="/static/daily-task-progress.js?v=20261015"></script>
+<script src="/static/daily-task-progress.js?v=20261103-skill-review"></script>
 <script src="/static/source-aliases.js?v=20261021"></script>
 <script>
 let scheduleLoaded=false, scheduleDirty=false;
@@ -849,11 +849,11 @@ function renderDailyTasks(data){
   const visibleRuns=showHiddenDailyRuns?runs:runs.filter(run=>!run.hidden);
   const hiddenCount=data.hidden_run_count||runs.filter(run=>run.hidden).length;
   const runsHost=document.getElementById('dailyTaskRuns');
-  runsHost.innerHTML=(hiddenCount?'<p class="muted small">'+hiddenCount+' 条记录已隐藏。 <button onclick="toggleHiddenDailyRuns()">'+(showHiddenDailyRuns?'收起隐藏记录':'显示隐藏记录')+'</button></p>':'')+(visibleRuns.length?'<table><tr><th>日期 / 开始时间</th><th>总状态</th><th>媒体处理</th><th>概要生成</th><th>文件数（视频/原文/概要）</th><th>skill 更新</th><th>结果 / 错误</th><th>操作</th></tr>'+visibleRuns.map(run=>{
+  runsHost.innerHTML=(hiddenCount?'<p class="muted small">'+hiddenCount+' 条记录已隐藏。 <button onclick="toggleHiddenDailyRuns()">'+(showHiddenDailyRuns?'收起隐藏记录':'显示隐藏记录')+'</button></p>':'')+(visibleRuns.length?'<table><tr><th>日期 / 开始时间</th><th>总状态</th><th>媒体处理</th><th>概要生成</th><th>文件数（视频/原文/概要）</th><th>观察记录</th><th>主框架</th><th>判断原因</th><th>结果 / 错误</th><th>操作</th></tr>'+visibleRuns.map(run=>{
     const duration=run.finished_at&&run.started_at?Math.max(0,Math.round((new Date(run.finished_at)-new Date(run.started_at))/1000))+' 秒':run.finished_at?'—':run.status==='running'?'进行中':'未记录结束时间';
     const stateClass=run.status==='success'?'ok':['failed','logging_failed','interrupted','timed_out'].includes(run.status)?'critical':'warning';
     const message=run.error_message||run.run_summary||'—';
-    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+dailyTaskRunProgress(run)+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
+    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+dailyTaskRunProgress(run)+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td>'+dailyTaskSkillCells(run)+'<td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
   }).join('')+'</table>':'暂无运行记录。');
   const latest=data.latest_unread_summary;
   const notice=document.getElementById('latestUnreadSummary');
