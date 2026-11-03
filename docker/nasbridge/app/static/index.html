@@ -8,6 +8,7 @@
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
   <link rel="stylesheet" href="/static/home.css?v=20261021-identity">
+  <link rel="stylesheet" href="/static/wechat.css?v=20261103-article-list">
     <style>
     :root { color-scheme:dark; --bg:#fcf6e8; --surface:#fffcf4; --surface-2:#eee9df; --surface-3:#f4efe5; --line:#aaa0a6; --line-soft:#d8cec3; --text:#3b3a49; --muted:#706b75; --green:#52745f; --yellow:#916524; --red:#a34d46; --blue:#4d669d; --accent:#4d669d; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
@@ -287,7 +288,7 @@
       </form>
       <p id="wechatStatus" class="status-line" role="status" aria-live="polite">支持一次提交多个链接，逐篇抓取，单篇最长等待 60 秒。</p>
       <p class="small muted">成功结果自动保存到历史记录。多篇之间间隔 10 秒；遇到微信验证会停止整个批次。请保持页面打开，图片仅保留链接。</p>
-      <div id="wechatBatchItems" style="display:grid;gap:8px;margin-top:12px" aria-label="本次抓取结果"></div>
+      <div id="wechatBatchItems" aria-label="本次抓取结果"></div>
     </section>
     <section id="wechatResult" class="panel" hidden>
       <h2 id="wechatTitle"></h2><p id="wechatMeta" class="muted"></p>
@@ -301,10 +302,12 @@
     <section class="panel">
       <div class="panel-header"><h3>抓取历史</h3><button id="wechatHistoryRefresh" type="button">刷新列表</button></div>
       <form id="wechatSearchForm" class="toolbar"><label class="field" style="flex:1">搜索历史<input id="wechatSearch" type="search" maxlength="200" placeholder="标题、公众号、作者或链接"></label><button type="submit">搜索</button></form>
-      <div class="toolbar" style="margin-top:12px"><label class="check"><input id="wechatSelectPage" type="checkbox">选择本页</label><button id="wechatExportSelected" type="button" disabled>下载选中（0）</button><button id="wechatExportAll" type="button" disabled>打包下载全部</button></div>
+      <div class="wechat-list-toolbar"><label class="check"><input id="wechatSelectPage" type="checkbox">全选本页</label><div class="wechat-list-actions"><button id="wechatExportSelected" type="button" disabled>下载选中（0）</button><button id="wechatExportAll" type="button" disabled>打包下载全部</button></div></div>
       <p id="wechatHistoryStatus" class="status-line" role="status" aria-live="polite">进入后加载历史</p>
       <p id="wechatExportStatus" class="status-line" role="status"></p>
-      <div id="wechatHistoryItems" style="display:grid;gap:12px"></div>
+      <div id="wechatListHeading" class="wechat-list-heading" aria-hidden="true" hidden><span>文章 / 公众号</span><span>发布时间</span><span>最近抓取</span></div>
+      <div id="wechatHistoryItems" aria-label="历史文章列表"></div>
+      <p id="wechatHistoryEmpty" class="wechat-list-empty" hidden></p>
       <div class="action-row"><button id="wechatHistoryPrev" type="button" disabled>上一页</button><span id="wechatHistoryPage" class="muted"></span><button id="wechatHistoryNext" type="button" disabled>下一页</button></div>
     </section>
     </div>
@@ -916,7 +919,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/proxy-groups.js?v=20261102-layout"></script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
-<script src="/static/wechat.js?v=20261103-batch-tabs"></script>
+<script src="/static/wechat.js?v=20261103-article-list"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>

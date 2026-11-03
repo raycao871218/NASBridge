@@ -40,6 +40,9 @@
     el('wechatHistoryPrev').disabled = working || historyLoading || historyPage <= 1;
     el('wechatHistoryNext').disabled = working || historyLoading || historyPage * 20 >= historyTotal;
     el('wechatHistoryItems').querySelectorAll('button').forEach(button => { button.disabled = working; });
+    el('wechatHistoryItems').querySelectorAll('.wechat-article-row').forEach(row => {
+      row.classList.toggle('is-selected', row.querySelector('input').checked);
+    });
     el('wechatExportSelected').disabled = exporting || selected.size === 0;
     el('wechatExportSelected').textContent = '下载选中（' + selected.size + '）';
     el('wechatExportAll').disabled = exporting || historyLoading || historyTotal === 0;
@@ -102,6 +105,20 @@
     } catch (error) { el('wechatHistoryStatus').textContent = error.message; el('wechatHistoryStatus').className = 'status-line error'; }
     finally { busy(false); }
   }
+  function articleDate(value, label, className) {
+    const cell = document.createElement('span'); cell.className = 'wechat-article-date ' + className;
+    const caption = document.createElement('span'); caption.className = 'wechat-article-date-label'; caption.textContent = label + '：';
+    const time = document.createElement('time'), date = value ? new Date(value) : null;
+    if (date && !Number.isNaN(date.getTime())) {
+      time.dateTime = date.toISOString(); time.title = date.toLocaleString('zh-CN', {hour12: false});
+      time.textContent = formatPanelDate(value, {dateOnly: true});
+      if (className === 'wechat-article-fetched') {
+        const clock = document.createElement('span'); clock.className = 'wechat-article-clock';
+        clock.textContent = ' ' + date.toLocaleTimeString('zh-CN', {hour12: false, hour: '2-digit', minute: '2-digit'}); time.appendChild(clock);
+      }
+    } else time.textContent = '—';
+    cell.append(caption, time); return cell;
+  }
   window.loadWechatHistory = async function(page = historyPage) {
     const serial = ++historySerial;
     historyLoading = true; historyControls();
@@ -112,18 +129,30 @@
       historyPage = data.page; historyTotal = data.total;
       el('wechatHistoryItems').replaceChildren();
       for (const item of data.items) {
-        const row = document.createElement('div'); row.className = 'proxy-card';
-        const title = document.createElement('strong'); title.textContent = item.title || '未命名文章';
-        const meta = document.createElement('p'); meta.className = 'small muted';
-        meta.textContent = [item.account, item.author, item.publish_time ? '发布：' + item.publish_time : '', '抓取：' + new Date(item.fetched_at).toLocaleString('zh-CN', {hour12: false})].filter(Boolean).join(' · ');
-        const button = document.createElement('button'); button.type = 'button'; button.textContent = '打开文章';
+        const row = document.createElement('article'); row.className = 'wechat-article-row';
+        const title = document.createElement('span'); title.className = 'wechat-article-title'; title.textContent = item.title || '未命名文章';
+        const main = document.createElement('span'); main.className = 'wechat-article-main';
+        const source = document.createElement('span'); source.className = 'wechat-article-source';
+        const account = document.createElement('span'); account.className = 'wechat-article-account'; account.textContent = item.account || '未知公众号'; source.appendChild(account);
+        if (item.author && item.author !== item.account) {
+          const author = document.createElement('span'); author.className = 'wechat-article-author'; author.textContent = item.author; source.appendChild(author);
+        }
+        main.append(title, source);
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'wechat-article-open';
+        button.setAttribute('aria-label', '阅读文章：' + title.textContent);
+        const action = document.createElement('span'); action.className = 'wechat-article-action'; action.textContent = '阅读全文 →';
+        button.append(main, articleDate(item.publish_time, '发布', 'wechat-article-published'), articleDate(item.fetched_at, '抓取', 'wechat-article-fetched'), action);
         button.onclick = () => void openArticle(item.id);
-        const label = document.createElement('label'); label.className = 'check';
+        const label = document.createElement('label'); label.className = 'wechat-article-select';
         const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = item.id; checkbox.checked = selected.has(item.id);
+        checkbox.setAttribute('aria-label', '选择文章：' + title.textContent);
         checkbox.onchange = () => { if (checkbox.checked) selected.add(item.id); else selected.delete(item.id); historyControls(); };
-        label.append(checkbox, title);
-        row.append(label, meta, button); el('wechatHistoryItems').appendChild(row);
+        label.appendChild(checkbox);
+        row.append(label, button); el('wechatHistoryItems').appendChild(row);
       }
+      el('wechatListHeading').hidden = !data.items.length;
+      el('wechatHistoryEmpty').hidden = !!data.items.length;
+      el('wechatHistoryEmpty').textContent = historyQuery ? '没有找到匹配文章，试试其他标题或公众号名称。' : '还没有保存的文章，去「抓取文章」粘贴链接开始吧。';
       el('wechatHistoryStatus').textContent = data.total ? '共 ' + data.total + ' 篇，按最近抓取排序' : historyQuery ? '没有匹配的历史文章' : '暂无抓取历史，成功抓取后将自动保存在这里。';
       el('wechatHistoryStatus').className = 'status-line';
       el('wechatHistoryPage').textContent = data.total ? historyPage + ' / ' + Math.ceil(data.total / 20) : '';
@@ -167,6 +196,17 @@
     catch (error) { status(error.message, true); }
     finally { busy(false); }
   };
+  function batchRow(index, url) {
+    const row = document.createElement('div'); row.className = 'wechat-batch-row';
+    const number = document.createElement('span'); number.className = 'wechat-batch-number'; number.textContent = String(index + 1).padStart(2, '0');
+    const info = document.createElement('div'); info.className = 'wechat-batch-info';
+    const state = document.createElement('span'); state.className = 'wechat-batch-state';
+    const content = document.createElement('div');
+    const link = document.createElement('span'); link.className = 'wechat-batch-url'; link.textContent = url; link.title = url;
+    info.append(state, content, link); row.append(number, info); el('wechatBatchItems').appendChild(row);
+    return {state, content};
+  }
+  function batchState(row, text, state) { row.state.textContent = text; row.state.dataset.state = state; }
   el('wechatForm').onsubmit = async event => {
     event.preventDefault(); if (working) return;
     const urls = [...new Set(el('wechatUrl').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean))];
@@ -181,24 +221,25 @@
     el('wechatStop').hidden = false; el('wechatStop').disabled = false;
     article = null; el('wechatResult').hidden = true; el('wechatBatchItems').replaceChildren();
     const rows = urls.map((url, index) => {
-      const row = document.createElement('div'); row.className = 'small muted'; row.style.overflowWrap = 'anywhere';
-      row.textContent = (index + 1) + '. 等待抓取 · ' + url; el('wechatBatchItems').appendChild(row); return row;
+      const row = batchRow(index, url); batchState(row, '等待抓取', 'waiting'); return row;
     });
     let completed = 0, saved = 0, failed = 0, stopReason = '';
     try {
       for (let index = 0; index < urls.length; index++) {
         if (stopRequested) break;
         status('正在抓取 ' + (index + 1) + ' / ' + urls.length + '，已保存 ' + saved + ' 篇…');
-        rows[index].textContent = (index + 1) + '. 正在抓取 · ' + urls[index];
+        batchState(rows[index], '正在抓取', 'running');
         try {
           const data = await api('read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: urls[index], images: el('wechatImages').checked})});
           showArticle(data, urls[index]);
           const button = document.createElement('button'); button.type = 'button';
-          button.textContent = (index + 1) + '. ' + (data.title || '未命名文章') + (data.history_id ? ' · 已保存' : ' · 未保存');
-          button.onclick = () => showArticle(data, urls[index]); rows[index].replaceChildren(button);
+          button.className = 'wechat-batch-open'; button.textContent = data.title || '未命名文章';
+          button.onclick = () => showArticle(data, urls[index]); rows[index].content.replaceChildren(button);
+          batchState(rows[index], data.history_id ? '已保存 · 点击标题阅读' : '未保存', data.history_id ? 'saved' : 'error');
           if (data.history_id) saved++; else { failed++; if (data.history_error) { stopReason = data.history_error; stopRequested = true; } }
         } catch (error) {
-          failed++; rows[index].className = 'small error'; rows[index].textContent = (index + 1) + '. ' + error.message + ' · ' + urls[index];
+          failed++; batchState(rows[index], '抓取失败', 'error');
+          const message = document.createElement('span'); message.className = 'wechat-batch-message'; message.textContent = error.message; rows[index].content.replaceChildren(message);
           if (error.code === 'verify_required' || [409, 503].includes(error.status) || !error.status) { stopReason = error.message; stopRequested = true; }
         }
         completed++;
@@ -207,7 +248,7 @@
           await new Promise(resolve => { const timer = setTimeout(() => { wakeDelay = null; resolve(); }, 10000); wakeDelay = () => { clearTimeout(timer); wakeDelay = null; resolve(); }; });
         }
       }
-      for (let index = completed; index < urls.length; index++) rows[index].textContent = (index + 1) + '. 未抓取 · ' + urls[index];
+      for (let index = completed; index < urls.length; index++) batchState(rows[index], '未抓取', 'waiting');
       status((stopRequested ? '已停止' : '抓取完成') + '：已保存 ' + saved + ' 篇，失败或未保存 ' + failed + ' 篇，未抓取 ' + (urls.length - completed) + ' 篇。' + (stopReason ? ' ' + stopReason : ''), !!failed || !!stopReason);
     } finally { batchRunning = false; el('wechatStop').hidden = true; busy(false); }
   };

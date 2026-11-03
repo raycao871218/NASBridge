@@ -163,6 +163,8 @@ Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_rev
 
 历史页支持跨页勾选并下载选中项，或打包全部历史；搜索后“打包下载搜索结果”包含全部匹配文章，不限于当前页。ZIP 中每篇包含带元数据的 Markdown 和完整 JSON，以文章 ID 区分同名文章。`POST /api/wechat/export` 接受 `{"q":"关键词"}` 或 `{"ids":["文章ID"]}`（选中最多 1000 篇），返回 ZIP 附件。使用 PostgreSQL 游标逐批读取，临时 ZIP 下载后清理，不重新抓取文章或下载图片。
 
+历史列表突出文章标题与公众号，桌面按列对齐发布时间和最近抓取时间，手机自动分行；点击标题所在行阅读全文，勾选文章后整行高亮。批次结果分别展示编号、状态、文章标题与链接，成功项点击标题即可预览。
+
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
 
 ZeroTier 页的“下载 planet”通过现有 SSH 连接读取控制器 `ztncui` 容器中的 `/var/lib/zerotier-one/planet`，浏览器保存的文件名为 `planet`。无需选择网络，也无需新增配置。下载的是控制器当前使用的文件；若需要自建 Planet，请先在控制器完成生成和替换。接口 `GET /api/zerotier/planet` 返回二进制附件，文件不存在或读取失败时会在页面提示。
