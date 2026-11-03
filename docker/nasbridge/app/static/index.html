@@ -696,9 +696,10 @@ async function createReverseProxy(){
   }catch(e){status.textContent=e.name==='AbortError'?'等待超过 60 秒，结果未知。请读取远端配置核对，不要重复创建。':`创建失败：${e.message||e}`;}
   finally{clearTimeout(timer);button.disabled=false;button.textContent='创建并同步';}
 }
+let mihomoConfigRevision=null;
 async function loadMihomoConfig(){
   const status=document.getElementById('mihomoConfigStatus'); status.textContent='读取中…';
-  try { const r=await fetch('/api/mihomo/config',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); document.getElementById('mihomoConfigText').value=data.content||''; status.textContent=`已加载 ${data.size||0} 字节`; }
+  try { const r=await fetch('/api/mihomo/config',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); document.getElementById('mihomoConfigText').value=data.content||''; mihomoConfigRevision=data.revision??null; status.textContent=`已加载 ${data.size||0} 字节`; }
   catch(e) { status.textContent=`读取失败：${e.message||e}`; }
 }
 function readMihomoFile(event){ const file=event.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ document.getElementById('mihomoConfigText').value=reader.result; document.getElementById('mihomoConfigStatus').textContent=`已导入 ${file.name}，尚未应用`; }; reader.onerror=()=>{ document.getElementById('mihomoConfigStatus').textContent='文件读取失败'; }; reader.readAsText(file); }
@@ -707,7 +708,7 @@ async function applyMihomoConfig(){
   if(!text.trim()) { status.textContent='请先加载或导入 YAML'; return; }
   if(!confirm('确认校验并应用 Mihomo 配置？Mihomo 会短暂重载代理服务。')) return;
   status.textContent='校验、备份并重载中…';
-  try { const r=await fetch('/api/mihomo/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已应用；备份：${data.backup||'无'}`; await load(); }
+  try { const r=await fetch('/api/mihomo/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text,expected_revision:mihomoConfigRevision})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); mihomoConfigRevision=data.revision??null; status.textContent=`已应用；备份：${data.backup||'无'}`; await load(); }
   catch(e) { status.textContent=`应用失败：${e.message||e}`; }
 }
 async function controlMihomo(action){

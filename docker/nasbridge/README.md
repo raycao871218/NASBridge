@@ -133,6 +133,11 @@ docker run --rm --network none \
 测试通过 mock 或临时目录验证 API，不应写入真实短信、文章已读状态或云资源。阿里云前端逻辑测试仅使用 Node.js 内置模块，可执行 `node test_aliyun_ui.cjs`。
 视频前端测试同样无需依赖或生产连接：`node test_videos_ui.cjs`。
 每日任务前端测试：`node test_daily_task_ui.cjs`。
+Mihomo 配置版本与冲突处理前端测试：`node test_mihomo_config_ui.cjs`。
+
+`tests/test_review_regressions.py` 覆盖跨站容器操作、证书调度数据库故障、证书检测期间的接口响应，以及配置备份、版本冲突与回滚串行执行。证书脚本测试在包含仓库 `src/` 且安装 Bash 时执行，使用模拟 Docker 命令，不连接真实容器。
+
+Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_revision`；配置已被其他页面修改时返回 409，需重新加载后再保存。旧客户端未提交版本时仍兼容，当前单进程部署会串行执行保存、重载和失败回滚；备份文件名包含唯一标识，避免同秒保存覆盖。
 
 ## 配置与访问边界
 

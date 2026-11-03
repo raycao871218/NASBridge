@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import logging
@@ -28,7 +29,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -63,6 +64,8 @@ from .daily_task_control import router as daily_task_control_router, manual_cont
 app.include_router(daily_task_control_router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 certificate_sync_lock = asyncio.Lock()
+mihomo_config_lock = asyncio.Lock()
+certificate_inspection_slots = asyncio.Semaphore(4)
 scheduler_task: asyncio.Task[None] | None = None
 
 STATE_TABLE_SQL = """
@@ -1015,9 +1018,11 @@ def validate_mihomo_config_text(content: str) -> dict[str, Any]:
 
 def read_mihomo_config_file(path: Path) -> dict[str, Any]:
     stat_result = path.stat()
+    content = path.read_text(encoding="utf-8")
     return {
         "path": str(path),
-        "content": path.read_text(encoding="utf-8"),
+        "content": content,
+        "revision": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "modified_at": datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat(),
         "size": stat_result.st_size,
     }
@@ -1028,7 +1033,7 @@ def write_mihomo_config_file(path: Path, content: str) -> str:
     backup_dir = DATA_DIR / "mihomo-backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
-    backup_path = backup_dir / f"config.yaml.{timestamp}.bak"
+    backup_path = backup_dir / f"config.yaml.{timestamp}.{uuid.uuid4().hex}.bak"
     if path.exists():
         backup_path.write_bytes(path.read_bytes())
     temporary = path.with_name(f".{path.name}.nasbridge-{uuid.uuid4().hex}.tmp")
@@ -1525,26 +1530,30 @@ async def sync_all_configured_certificates() -> list[dict[str, Any]]:
 async def certificate_scheduler() -> None:
     while True:
         try:
-            schedule = load_schedule()
+            schedule = await asyncio.to_thread(load_schedule)
             slot = scheduled_slot(schedule)
             if slot and schedule.get("last_run_slot") != slot:
                 results = await sync_all_configured_certificates()
                 failures = [item for item in results if item.get("status") == "error"]
-                schedule = load_schedule()
+                schedule = await asyncio.to_thread(load_schedule)
                 schedule.update({
                     "last_run_slot": slot,
                     "last_run_at": utc_now().isoformat(),
                     "last_result": "failed" if failures else "success",
                     "last_error": "; ".join(f"{item.get('id')}: {item.get('error')}" for item in failures) or None,
                 })
-                save_schedule(schedule)
+                await asyncio.to_thread(save_schedule, schedule)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            schedule = load_schedule()
-            schedule["last_result"] = "failed"
-            schedule["last_error"] = f"计划任务失败：{type(exc).__name__}: {exc}"
-            save_schedule(schedule)
+            logging.exception("证书计划任务失败，将在下一轮重试")
+            try:
+                schedule = await asyncio.to_thread(load_schedule)
+                schedule["last_result"] = "failed"
+                schedule["last_error"] = f"计划任务失败：{type(exc).__name__}: {exc}"
+                await asyncio.to_thread(save_schedule, schedule)
+            except Exception:
+                logging.exception("无法保存证书计划错误状态，将在下一轮重试")
         await asyncio.sleep(20)
 
 
@@ -1554,8 +1563,14 @@ async def build_overview() -> dict[str, Any]:
     # Keep the response field for older clients, without inferring applications
     # from shared source IPs or manually configured application names.
     applications: list[dict[str, Any]] = []
-    certs = [inspect_local_cert(item) for item in config.get("certificates", {}).get("local", [])]
-    certs.extend(inspect_remote_cert(item) for item in config.get("certificates", {}).get("remote", []))
+    async def inspect(inspector, item):
+        async with certificate_inspection_slots:
+            return await asyncio.to_thread(inspector, item)
+
+    certs = await asyncio.gather(
+        *(inspect(inspect_local_cert, item) for item in config.get("certificates", {}).get("local", [])),
+        *(inspect(inspect_remote_cert, item) for item in config.get("certificates", {}).get("remote", [])),
+    )
     local_by_id = {item.get("id"): item for item in certs if item.get("kind") == "local"}
     for remote in (item for item in certs if item.get("kind") == "remote"):
         local = local_by_id.get(remote.get("local_ref"))
@@ -1563,7 +1578,7 @@ async def build_overview() -> dict[str, Any]:
             remote["matches_local"] = local["fingerprint_sha256"] == remote["fingerprint_sha256"]
         else:
             remote["matches_local"] = None
-    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": {}, "certificates": certs, "schedule": schedule_state(), "generated_at": utc_now().isoformat()}
+    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": {}, "certificates": certs, "schedule": await asyncio.to_thread(schedule_state), "generated_at": utc_now().isoformat()}
 
 
 @app.on_event("startup")
@@ -1736,7 +1751,13 @@ async def health() -> dict[str, Any]:
 
 
 @app.post("/api/mihomo/container/{action}")
-async def control_mihomo(action: str) -> dict[str, Any]:
+async def control_mihomo(action: str, request: Request) -> dict[str, Any]:
+    origin = request.headers.get("origin")
+    if request.headers.get("sec-fetch-site") == "cross-site" or (origin and (
+        urlparse(origin).scheme not in {"http", "https"}
+        or urlparse(origin).netloc != request.headers.get("host")
+    )):
+        raise HTTPException(status_code=403, detail="不接受跨站请求")
     return await control_mihomo_container(action)
 
 
@@ -1752,17 +1773,28 @@ async def get_mihomo_config() -> dict[str, Any]:
 
 @app.put("/api/mihomo/config")
 async def update_mihomo_config(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    async with mihomo_config_lock:
+        return await apply_mihomo_config(payload)
+
+
+async def apply_mihomo_config(payload: dict[str, Any]) -> dict[str, Any]:
     content = payload.get("content")
     if not isinstance(content, str):
         raise HTTPException(status_code=400, detail="请求必须包含 content 字符串")
     validate_mihomo_config_text(content)
     config = load_config()
     path = mihomo_config_path(config)
+    expected_revision = payload.get("expected_revision")
+    if expected_revision is not None:
+        current = await asyncio.to_thread(read_mihomo_config_file, path)
+        if expected_revision != current["revision"]:
+            raise HTTPException(status_code=409, detail="Mihomo 配置已变更，请重新加载后再保存")
     backup_path = ""
     try:
         backup_path = await asyncio.to_thread(write_mihomo_config_file, path, content)
         await mihomo_reload(config.get("mihomo", {}))
-        return {"status": "applied", "message": "Mihomo 配置已保存并重载", "backup": backup_path}
+        return {"status": "applied", "message": "Mihomo 配置已保存并重载", "backup": backup_path,
+                "revision": hashlib.sha256(content.encode("utf-8")).hexdigest()}
     except Exception as exc:
         if backup_path:
             try:
