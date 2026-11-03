@@ -3,7 +3,10 @@ import asyncio
 import hashlib
 import json
 import os
+import re
+import tempfile
 import threading
+import zipfile
 from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlsplit, urlunsplit
@@ -12,7 +15,8 @@ import httpx
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
@@ -105,6 +109,77 @@ def get_article(key: str):
         raise HTTPException(404, "历史文章不存在")
     return JSONResponse({**row["payload"], "history_id": key, "fetched_at": row["fetched_at"].isoformat()},
                         headers={"Cache-Control": "no-store"})
+
+
+class ExportArticles(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[str] | None = Field(default=None, min_length=1, max_length=1000)
+    q: str = Field(default="", max_length=200)
+
+    @field_validator("ids")
+    @classmethod
+    def validate_ids(cls, value):
+        if value is not None and any(not re.fullmatch(r"[0-9a-f]{64}", key) for key in value):
+            raise ValueError("文章 ID 无效")
+        return value
+
+
+def article_markdown(payload):
+    metadata = [("公众号", payload.get("account")), ("作者", payload.get("author")),
+                ("发布时间", payload.get("publish_time")), ("原文", payload.get("url"))]
+    return "# " + (payload.get("title") or "未命名文章") + "\n\n" + "\n\n".join(
+        f"{label}：{value}" for label, value in metadata if value) + "\n\n" + payload.get("markdown", "")
+
+
+@router.post("/export")
+def export_articles(body: ExportArticles, request: Request):
+    check_origin(request)
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        raise HTTPException(403, "不接受跨站请求")
+    archive = tempfile.TemporaryFile()
+    count = 0
+    try:
+        with closing(history_connection()) as connection, connection, connection.cursor(
+                name="wechat_export", cursor_factory=RealDictCursor) as cursor:
+            if body.ids is not None:
+                cursor.execute("SELECT id, payload, fetched_at FROM public.wechat_articles WHERE id = ANY(%s) ORDER BY fetched_at DESC, id",
+                               (body.ids,))
+            else:
+                cursor.execute("""SELECT id, payload, fetched_at FROM public.wechat_articles
+                    WHERE strpos(lower(title || ' ' || account || ' ' || author || ' ' || url), %s) > 0
+                    ORDER BY fetched_at DESC, id""", (body.q.strip().lower(),))
+            cursor.itersize = 100
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+                for row in cursor:
+                    payload = row["payload"]
+                    title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', payload.get("title") or "未命名文章").strip(" .")[:80] or "文章"
+                    stem = title + "-" + row["id"]
+                    bundle.writestr(stem + ".md", article_markdown(payload))
+                    bundle.writestr(stem + ".json", json.dumps({**payload, "history_id": row["id"],
+                        "fetched_at": row["fetched_at"].isoformat()}, ensure_ascii=False, indent=2))
+                    count += 1
+        if not count:
+            archive.close()
+            raise HTTPException(404, "没有可打包的历史文章")
+        size = archive.tell()
+        archive.seek(0)
+    except (psycopg2.Error, OSError):
+        archive.close()
+        raise HTTPException(503, "历史文章打包失败，请稍后重试")
+    except Exception:
+        archive.close()
+        raise
+
+    def chunks():
+        try:
+            while chunk := archive.read(65536):
+                yield chunk
+        finally:
+            archive.close()
+
+    return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(archive.close),
+        headers={"Cache-Control": "no-store", "Content-Length": str(size),
+                 "Content-Disposition": 'attachment; filename="wechat-articles.zip"'})
 
 
 class ReadArticle(BaseModel):

@@ -45,6 +45,7 @@
     .view-tab.active::before { background:#91b7ff; box-shadow:0 0 10px rgba(142,181,255,.7); opacity:1; }
     .view { display:none; grid-column:2; min-width:0; }
     .view.active { display:block; }
+    #wechatView [hidden] { display:none !important; }
     .section-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:2px 0 18px; }
     .section-heading h2 { font-size:22px; line-height:1.3; letter-spacing:-.4px; }
     .section-heading p { margin-top:5px; color:var(--muted); font-size:12px; }
@@ -274,20 +275,19 @@
   </section>
   <section id="wechatView" class="view">
     <div class="section-heading"><div><h2>公众号文章</h2><p>粘贴微信文章链接，抓取正文并导出。</p></div><button id="wechatHealth" type="button">检查服务</button></div>
+    <div class="toolbar" role="tablist" aria-label="公众号文章" style="margin-bottom:16px">
+      <button id="wechatFetchTab" type="button" role="tab" aria-selected="true" aria-controls="wechatFetchPanel" class="primary">抓取文章</button>
+      <button id="wechatHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="wechatHistoryPanel" tabindex="-1">历史记录</button>
+    </div>
+    <div id="wechatFetchPanel" role="tabpanel" aria-labelledby="wechatFetchTab">
     <section class="panel">
       <form id="wechatForm">
-        <label class="field">文章链接<input id="wechatUrl" type="url" required maxlength="8192" placeholder="https://mp.weixin.qq.com/s/…"></label>
-        <div class="action-row"><label class="check"><input id="wechatImages" type="checkbox" checked>保留正文图片链接</label><button id="wechatRead" class="primary" type="submit">抓取文章</button></div>
+        <label class="field">文章链接（每行一个，最多 100 个）<textarea id="wechatUrl" required maxlength="819200" rows="4" style="min-height:110px;margin-top:0" placeholder="https://mp.weixin.qq.com/s/…&#10;https://mp.weixin.qq.com/s/…"></textarea></label>
+        <div class="action-row"><label class="check"><input id="wechatImages" type="checkbox" checked>保留正文图片链接</label><button id="wechatStop" type="button" hidden>停止后续抓取</button><button id="wechatRead" class="primary" type="submit">开始抓取</button></div>
       </form>
-      <p id="wechatStatus" class="status-line" role="status" aria-live="polite">每次抓取一篇，最长等待 60 秒。</p>
-      <p class="small muted">成功抓取的文章自动保存到 NAS，可在下方历史列表重新打开。图片仅保留链接；遇到微信验证需人工处理。</p>
-    </section>
-    <section class="panel">
-      <div class="panel-header"><h3>抓取历史</h3><button id="wechatHistoryRefresh" type="button">刷新列表</button></div>
-      <form id="wechatSearchForm" class="toolbar"><label class="field" style="flex:1">搜索历史<input id="wechatSearch" type="search" maxlength="200" placeholder="标题、公众号、作者或链接"></label><button type="submit">搜索</button></form>
-      <p id="wechatHistoryStatus" class="status-line" role="status" aria-live="polite">进入后加载历史</p>
-      <div id="wechatHistoryItems" style="display:grid;gap:12px"></div>
-      <div class="action-row"><button id="wechatHistoryPrev" type="button" disabled>上一页</button><span id="wechatHistoryPage" class="muted"></span><button id="wechatHistoryNext" type="button" disabled>下一页</button></div>
+      <p id="wechatStatus" class="status-line" role="status" aria-live="polite">支持一次提交多个链接，逐篇抓取，单篇最长等待 60 秒。</p>
+      <p class="small muted">成功结果自动保存到历史记录。多篇之间间隔 10 秒；遇到微信验证会停止整个批次。请保持页面打开，图片仅保留链接。</p>
+      <div id="wechatBatchItems" style="display:grid;gap:8px;margin-top:12px" aria-label="本次抓取结果"></div>
     </section>
     <section id="wechatResult" class="panel" hidden>
       <h2 id="wechatTitle"></h2><p id="wechatMeta" class="muted"></p>
@@ -296,6 +296,18 @@
       <div id="wechatBody" style="margin-top:20px"></div>
       <details style="margin-top:20px"><summary>Markdown 原文</summary><pre id="wechatRaw" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
     </section>
+    </div>
+    <div id="wechatHistoryPanel" role="tabpanel" aria-labelledby="wechatHistoryTab" hidden>
+    <section class="panel">
+      <div class="panel-header"><h3>抓取历史</h3><button id="wechatHistoryRefresh" type="button">刷新列表</button></div>
+      <form id="wechatSearchForm" class="toolbar"><label class="field" style="flex:1">搜索历史<input id="wechatSearch" type="search" maxlength="200" placeholder="标题、公众号、作者或链接"></label><button type="submit">搜索</button></form>
+      <div class="toolbar" style="margin-top:12px"><label class="check"><input id="wechatSelectPage" type="checkbox">选择本页</label><button id="wechatExportSelected" type="button" disabled>下载选中（0）</button><button id="wechatExportAll" type="button" disabled>打包下载全部</button></div>
+      <p id="wechatHistoryStatus" class="status-line" role="status" aria-live="polite">进入后加载历史</p>
+      <p id="wechatExportStatus" class="status-line" role="status"></p>
+      <div id="wechatHistoryItems" style="display:grid;gap:12px"></div>
+      <div class="action-row"><button id="wechatHistoryPrev" type="button" disabled>上一页</button><span id="wechatHistoryPage" class="muted"></span><button id="wechatHistoryNext" type="button" disabled>下一页</button></div>
+    </section>
+    </div>
   </section>
   <section id="geofenceView" class="view">
     <div class="section-heading"><div><h2>地理围栏</h2><p>在地图上选一个点，设定你希望覆盖的半径。</p></div><button id="geoReload" type="button">重新读取</button></div>
@@ -594,7 +606,7 @@ function switchView(id, button, autoLoad=true){
   if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
-  if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='wechatView')void loadWechatHistory();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
+  if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }
 function toggleCustomDays(){ const mode=document.getElementById('scheduleMode').value; document.getElementById('customDays').style.display=mode==='custom'?'flex':'none'; document.getElementById('monthDayField').hidden=mode!=='monthly'; }
@@ -904,12 +916,12 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/proxy-groups.js?v=20261102-layout"></script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
-<script src="/static/wechat.js?v=20261103-history"></script>
+<script src="/static/wechat.js?v=20261103-batch-tabs"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
 <script src="/static/android-setup.js?v=20261022-local-priority"></script>
-<script src="/static/view-state.js?v=20261103-wechat-history"></script>
+<script src="/static/view-state.js?v=20261103-wechat-tabs"></script>
 </body>
 </html>

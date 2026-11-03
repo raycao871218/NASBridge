@@ -2,6 +2,23 @@
   const el = id => document.getElementById(id);
   let article = null;
   let working = false, historyLoading = false, historyPage = 1, historyTotal = 0, historyQuery = '', historySerial = 0;
+  let stopRequested = false, batchRunning = false, wakeDelay = null, exporting = false;
+  const selected = new Set();
+  function selectTab(history) {
+    el('wechatFetchPanel').hidden = history; el('wechatHistoryPanel').hidden = !history;
+    for (const [id, active] of [['wechatFetchTab', !history], ['wechatHistoryTab', history]]) {
+      el(id).setAttribute('aria-selected', String(active)); el(id).classList.toggle('primary', active); el(id).tabIndex = active ? 0 : -1;
+    }
+    if (history) void window.loadWechatHistory();
+  }
+  el('wechatFetchTab').onclick = () => selectTab(false);
+  el('wechatHistoryTab').onclick = () => selectTab(true);
+  for (const id of ['wechatFetchTab', 'wechatHistoryTab']) el(id).onkeydown = event => {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault(); const history = event.key === 'End' || (event.key !== 'Home' && id === 'wechatFetchTab');
+      selectTab(history); el(history ? 'wechatHistoryTab' : 'wechatFetchTab').focus();
+    }
+  };
   const errors = {
     verify_required: '微信要求验证，请停止抓取，人工处理后再重试。',
     deleted: '文章已被发布者删除。', blocked: '文章被屏蔽或限制查看。',
@@ -23,13 +40,24 @@
     el('wechatHistoryPrev').disabled = working || historyLoading || historyPage <= 1;
     el('wechatHistoryNext').disabled = working || historyLoading || historyPage * 20 >= historyTotal;
     el('wechatHistoryItems').querySelectorAll('button').forEach(button => { button.disabled = working; });
+    el('wechatExportSelected').disabled = exporting || selected.size === 0;
+    el('wechatExportSelected').textContent = '下载选中（' + selected.size + '）';
+    el('wechatExportAll').disabled = exporting || historyLoading || historyTotal === 0;
+    el('wechatExportAll').textContent = historyQuery ? '打包下载搜索结果' : '打包下载全部';
+    const boxes = [...el('wechatHistoryItems').querySelectorAll('input[type=checkbox]')];
+    el('wechatSelectPage').disabled = !boxes.length;
+    el('wechatSelectPage').checked = boxes.length > 0 && boxes.every(box => box.checked);
+    el('wechatSelectPage').indeterminate = boxes.some(box => box.checked) && !el('wechatSelectPage').checked;
   }
   async function api(path, options = {}) {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 65000);
     try {
       const response = await fetch('/api/wechat/' + path, {...options, signal: controller.signal, cache: 'no-store'});
       const payload = await response.json();
-      if (!response.ok) throw Error(errors[payload.error] || (typeof payload.detail === 'string' ? payload.detail : payload.message) || '请求失败，请检查链接和服务配置。');
+      if (!response.ok) {
+        const error = Error(errors[payload.error] || (typeof payload.detail === 'string' ? payload.detail : payload.message) || '请求失败，请检查链接和服务配置。');
+        error.code = payload.error; error.status = response.status; throw error;
+      }
       return payload;
     } catch (error) {
       if (error.name === 'AbortError') throw Error('请求超时，请稍后手动重试。');
@@ -68,9 +96,10 @@
     try {
       const data = await api('articles/' + encodeURIComponent(id));
       showArticle(data, data.url);
+      selectTab(false);
       status('已打开保存的文章，无需重新抓取');
       el('wechatResult').scrollIntoView({behavior: 'smooth', block: 'start'});
-    } catch (error) { status(error.message, true); }
+    } catch (error) { el('wechatHistoryStatus').textContent = error.message; el('wechatHistoryStatus').className = 'status-line error'; }
     finally { busy(false); }
   }
   window.loadWechatHistory = async function(page = historyPage) {
@@ -89,7 +118,11 @@
         meta.textContent = [item.account, item.author, item.publish_time ? '发布：' + item.publish_time : '', '抓取：' + new Date(item.fetched_at).toLocaleString('zh-CN', {hour12: false})].filter(Boolean).join(' · ');
         const button = document.createElement('button'); button.type = 'button'; button.textContent = '打开文章';
         button.onclick = () => void openArticle(item.id);
-        row.append(title, meta, button); el('wechatHistoryItems').appendChild(row);
+        const label = document.createElement('label'); label.className = 'check';
+        const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.value = item.id; checkbox.checked = selected.has(item.id);
+        checkbox.onchange = () => { if (checkbox.checked) selected.add(item.id); else selected.delete(item.id); historyControls(); };
+        label.append(checkbox, title);
+        row.append(label, meta, button); el('wechatHistoryItems').appendChild(row);
       }
       el('wechatHistoryStatus').textContent = data.total ? '共 ' + data.total + ' 篇，按最近抓取排序' : historyQuery ? '没有匹配的历史文章' : '暂无抓取历史，成功抓取后将自动保存在这里。';
       el('wechatHistoryStatus').className = 'status-line';
@@ -104,6 +137,30 @@
   el('wechatHistoryPrev').onclick = () => void window.loadWechatHistory(historyPage - 1);
   el('wechatHistoryNext').onclick = () => void window.loadWechatHistory(historyPage + 1);
   el('wechatSearchForm').onsubmit = event => { event.preventDefault(); historyQuery = el('wechatSearch').value.trim(); void window.loadWechatHistory(1); };
+  el('wechatSelectPage').onchange = () => {
+    el('wechatHistoryItems').querySelectorAll('input[type=checkbox]').forEach(box => {
+      box.checked = el('wechatSelectPage').checked; if (box.checked) selected.add(box.value); else selected.delete(box.value);
+    }); historyControls();
+  };
+  async function exportHistory(ids) {
+    if (exporting) return;
+    exporting = true; historyControls(); el('wechatExportStatus').textContent = '正在打包历史文章…';
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 300000);
+    try {
+      const response = await fetch('/api/wechat/export', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(ids ? {ids} : {q: historyQuery}), signal: controller.signal, cache: 'no-store'});
+      if (!response.ok) {
+        const data = await response.json(); throw Error(typeof data.detail === 'string' ? data.detail : '历史文章打包失败');
+      }
+      const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = 'wechat-articles.zip'; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      el('wechatExportStatus').textContent = 'ZIP 已下载，每篇包含 Markdown 和 JSON。';
+    } catch (error) { el('wechatExportStatus').textContent = error.name === 'AbortError' ? '打包超时，请减少选择后重试。' : error.message; }
+    finally { clearTimeout(timer); exporting = false; historyControls(); }
+  }
+  el('wechatExportSelected').onclick = () => void exportHistory([...selected]);
+  el('wechatExportAll').onclick = () => void exportHistory();
   el('wechatHealth').onclick = async () => {
     busy(true); status('正在检查服务…');
     try { const data = await api('health'); status('读取服务在线' + (data.version ? ' · ' + data.version : '') + '；实际抓取能力请通过文章链接验证。'); }
@@ -111,17 +168,51 @@
     finally { busy(false); }
   };
   el('wechatForm').onsubmit = async event => {
-    event.preventDefault(); busy(true); article = null; el('wechatResult').hidden = true;
-    status('正在抓取文章，请稍候…');
+    event.preventDefault(); if (working) return;
+    const urls = [...new Set(el('wechatUrl').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean))];
+    if (!urls.length || urls.length > 100) { status('请填写 1～100 个链接，每行一个。', true); return; }
+    for (const value of urls) {
+      try {
+        const url = new URL(value);
+        if (value.length > 8192 || /[\s\\\x00-\x1f]/.test(value) || !['http:', 'https:'].includes(url.protocol) || url.hostname !== 'mp.weixin.qq.com' || url.username || url.password || !['', '80', '443'].includes(url.port) || !(url.pathname === '/s' || url.pathname.startsWith('/s/'))) throw Error();
+      } catch { status('链接无效：' + value + '，请填写微信公众号文章链接，每行一个。', true); return; }
+    }
+    busy(true); stopRequested = false; batchRunning = true;
+    el('wechatStop').hidden = false; el('wechatStop').disabled = false;
+    article = null; el('wechatResult').hidden = true; el('wechatBatchItems').replaceChildren();
+    const rows = urls.map((url, index) => {
+      const row = document.createElement('div'); row.className = 'small muted'; row.style.overflowWrap = 'anywhere';
+      row.textContent = (index + 1) + '. 等待抓取 · ' + url; el('wechatBatchItems').appendChild(row); return row;
+    });
+    let completed = 0, saved = 0, failed = 0, stopReason = '';
     try {
-      const data = await api('read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: el('wechatUrl').value.trim(), images: el('wechatImages').checked})});
-      showArticle(data, el('wechatUrl').value.trim());
-      status(data.history_id ? '抓取完成，已保存到历史' : data.history_error || '抓取完成，但内容不完整，未保存到历史', !data.history_id);
-      historyQuery = ''; el('wechatSearch').value = '';
-      await window.loadWechatHistory(1);
-    } catch (error) { article = null; status(error.message, true); }
-    finally { busy(false); }
+      for (let index = 0; index < urls.length; index++) {
+        if (stopRequested) break;
+        status('正在抓取 ' + (index + 1) + ' / ' + urls.length + '，已保存 ' + saved + ' 篇…');
+        rows[index].textContent = (index + 1) + '. 正在抓取 · ' + urls[index];
+        try {
+          const data = await api('read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: urls[index], images: el('wechatImages').checked})});
+          showArticle(data, urls[index]);
+          const button = document.createElement('button'); button.type = 'button';
+          button.textContent = (index + 1) + '. ' + (data.title || '未命名文章') + (data.history_id ? ' · 已保存' : ' · 未保存');
+          button.onclick = () => showArticle(data, urls[index]); rows[index].replaceChildren(button);
+          if (data.history_id) saved++; else { failed++; if (data.history_error) { stopReason = data.history_error; stopRequested = true; } }
+        } catch (error) {
+          failed++; rows[index].className = 'small error'; rows[index].textContent = (index + 1) + '. ' + error.message + ' · ' + urls[index];
+          if (error.code === 'verify_required' || [409, 503].includes(error.status) || !error.status) { stopReason = error.message; stopRequested = true; }
+        }
+        completed++;
+        if (!stopRequested && index < urls.length - 1) {
+          status('已完成 ' + completed + ' / ' + urls.length + '，等待 10 秒后抓取下一篇…');
+          await new Promise(resolve => { const timer = setTimeout(() => { wakeDelay = null; resolve(); }, 10000); wakeDelay = () => { clearTimeout(timer); wakeDelay = null; resolve(); }; });
+        }
+      }
+      for (let index = completed; index < urls.length; index++) rows[index].textContent = (index + 1) + '. 未抓取 · ' + urls[index];
+      status((stopRequested ? '已停止' : '抓取完成') + '：已保存 ' + saved + ' 篇，失败或未保存 ' + failed + ' 篇，未抓取 ' + (urls.length - completed) + ' 篇。' + (stopReason ? ' ' + stopReason : ''), !!failed || !!stopReason);
+    } finally { batchRunning = false; el('wechatStop').hidden = true; busy(false); }
   };
+  el('wechatStop').onclick = () => { stopRequested = true; el('wechatStop').disabled = true; status('已请求停止，当前文章完成后不再抓取后续链接。'); if (wakeDelay) wakeDelay(); };
+  window.addEventListener('beforeunload', event => { if (batchRunning) { event.preventDefault(); event.returnValue = ''; } });
   el('wechatCopy').onclick = async () => {
     if (!article) return;
     try { await navigator.clipboard.writeText(markdown()); status('Markdown 已复制'); }

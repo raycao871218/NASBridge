@@ -1,6 +1,8 @@
 """Opt-in integration against an isolated PostgreSQL database, never production."""
 import os
+import io
 import unittest
+import zipfile
 from unittest.mock import AsyncMock, patch
 
 import psycopg2
@@ -51,6 +53,15 @@ class WechatPostgresTest(unittest.TestCase):
                 self.assertFalse({r['id'] for r in first['items']} & {r['id'] for r in second['items']})
                 self.assertEqual(client.get('/api/wechat/articles', params={'q': '历史文章'}).json()['total'], 1)
                 self.assertEqual(client.get('/api/wechat/articles', params={'q': "%' OR 1=1 --"}).json()['total'], 0)
+                response = client.post('/api/wechat/export', json={'q': '历史文章'})
+                self.assertEqual(response.status_code, 200)
+                with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
+                    self.assertEqual(len(bundle.namelist()), 2)
+                    self.assertIn('更新正文', bundle.read(next(name for name in bundle.namelist() if name.endswith('.md'))).decode())
+                response = client.post('/api/wechat/export', json={'ids': [key]})
+                self.assertEqual(response.status_code, 200)
+                with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
+                    self.assertEqual(len(bundle.namelist()), 2)
         finally:
             wechat._schema_ready = False
 

@@ -151,6 +151,8 @@ Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_rev
 
 导航中的“公众号文章”调用单独部署的 `wechat-article-reader`，支持单篇链接抓取、正文预览、复制和 Markdown/JSON 下载。兼容 `/s/文章标识` 与包含 `__biz` 等查询参数的长链接。默认保留正文图片链接，可取消；不会下载图片，JSON 中的图片数组与封面仍保留。
 
+页面分为“抓取文章”和“历史记录”两个页签，进入或刷新默认显示抓取表单和文章正文。每行粘贴一个链接，最多 100 个，自动去除重复输入；网页串行调用单篇接口，多篇之间等待 10 秒，逐篇显示结果，可点击成功项查看正文。普通单篇错误会记录后继续，遇到微信验证、其他抓取占用、服务不可用或连接异常则停止后续抓取；可主动点击“停止后续抓取”，当前请求完成后停止。批次由当前网页执行，需保持页面打开，刷新或关闭不会在后台继续。
+
 标题与正文非空的成功结果自动保存到现有 PostgreSQL 的 `public.wechat_articles`，包含元数据、完整正文 JSONB 和最近抓取时间；使用已有 `NASBRIDGE_POSTGRES_*` 连接配置，应用自动建表。重复抓取同篇文章更新原记录，长链接以 `__biz/mid/idx` 去重，短链接忽略跟踪参数。历史列表按最近抓取时间倒序、每页 20 篇，支持按标题、公众号、作者和链接搜索。点击“打开文章”直接读取数据库，刷新、切换浏览器或容器重启后仍可查看、复制和下载。空内容和失败抓取不覆盖已有记录；数据库保存失败会保留当前结果并明确提示立即下载。此功能上线前的网页抓取结果未落盘，无法从读取 API 自动补回。
 
 在 NAS 的真实 `config/config.yaml` 添加 `wechat_reader.base_url`，值为读取服务的 HTTP 地址及端口（18765）。与面板同宿主机时可用 `http://host.docker.internal:18765`，也可填写 NAS 内网地址。现有配置未包含此项时会明确提示未配置；无需覆盖其他配置。可通过 `NASBRIDGE_WECHAT_READER_URL` 环境变量覆盖，Compose 模板已加入该变量，现有 `compose.yaml` 使用环境变量时需同步添加。
@@ -158,6 +160,8 @@ Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_rev
 后端接口：`GET /api/wechat/health`；`POST /api/wechat/read`，JSON 请求体为 `{"url":"https://mp.weixin.qq.com/s/ARTICLE_ID","images":true}`。服务器固定调用上游 JSON 模式和 `browser=never`，编码完整链接，绕过环境代理访问局域网服务；最长等待 60 秒。同一面板进程最多抓取一篇，不自动重试。微信验证、删除、屏蔽、过期等错误会直接提示；健康检查只说明服务在线，抓取后的标题和正文仍需核对。沿用面板现有访问控制，仅在可信网络使用。
 
 历史接口：`GET /api/wechat/articles?q=关键词&page=1&limit=20` 返回摘要分页列表；`GET /api/wechat/articles/{id}` 返回保存的全文。验证：`python -m unittest discover -s tests -p test_wechat.py -v`，使用模拟上游和数据库，不访问真实文章；`node test_wechat_ui.cjs` 验证抓取、导出、历史重开与搜索（需要 Playwright 和 Edge，可通过 `NASBRIDGE_BROWSER_CHANNEL` 指定其他浏览器）。
+
+历史页支持跨页勾选并下载选中项，或打包全部历史；搜索后“打包下载搜索结果”包含全部匹配文章，不限于当前页。ZIP 中每篇包含带元数据的 Markdown 和完整 JSON，以文章 ID 区分同名文章。`POST /api/wechat/export` 接受 `{"q":"关键词"}` 或 `{"ids":["文章ID"]}`（选中最多 1000 篇），返回 ZIP 附件。使用 PostgreSQL 游标逐批读取，临时 ZIP 下载后清理，不重新抓取文章或下载图片。
 
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
 

@@ -1,5 +1,8 @@
 import asyncio
+import io
+import json
 import unittest
+import zipfile
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -148,6 +151,42 @@ class WechatHistoryTest(unittest.TestCase):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 503)
             self.assertNotIn('secret', response.text)
+
+    def test_export_zip_search_and_selection(self):
+        now = datetime.now(timezone.utc)
+        self.cursor.__iter__.side_effect = lambda: iter([
+            {'id': key * 64, 'payload': {'title': '../同名文章', 'account': '公众号', 'markdown': '正文', 'url': 'https://mp.weixin.qq.com/s/a'}, 'fetched_at': now}
+            for key in ['a', 'b']])
+        response = self.client.post('/api/wechat/export', json={'q': "%' OR 1=1 --"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['content-type'], 'application/zip')
+        with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
+            self.assertEqual(len(bundle.namelist()), 4)
+            for name in bundle.namelist():
+                self.assertNotIn('/', name)
+                self.assertNotIn('\\', name)
+                if name.endswith('.md'):
+                    self.assertIn('公众号：公众号', bundle.read(name).decode())
+                else:
+                    self.assertEqual(json.loads(bundle.read(name))['markdown'], '正文')
+        sql, params = self.cursor.execute.call_args.args
+        self.assertNotIn('OR 1=1', sql)
+        self.assertEqual(params, ("%' or 1=1 --",))
+        response = self.client.post('/api/wechat/export', json={'ids': ['a' * 64]})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('ANY(%s)', self.cursor.execute.call_args.args[0])
+        self.assertEqual(self.cursor.execute.call_args.args[1], (['a' * 64],))
+
+    def test_export_empty_invalid_and_cross_origin(self):
+        self.cursor.__iter__.return_value = iter([])
+        self.assertEqual(self.client.post('/api/wechat/export', json={}).status_code, 404)
+        for body in [{'ids': []}, {'ids': ['../bad']}, {'q': 'x' * 201}]:
+            self.assertEqual(self.client.post('/api/wechat/export', json=body).status_code, 422)
+        self.assertEqual(self.client.post('/api/wechat/export', json={}, headers={'Origin': 'https://evil.test'}).status_code, 403)
+        self.connection.cursor.side_effect = psycopg2.OperationalError('secret')
+        response = self.client.post('/api/wechat/export', json={})
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('secret', response.text)
 
 
 if __name__ == '__main__':
