@@ -280,7 +280,14 @@
         <div class="action-row"><label class="check"><input id="wechatImages" type="checkbox" checked>保留正文图片链接</label><button id="wechatRead" class="primary" type="submit">抓取文章</button></div>
       </form>
       <p id="wechatStatus" class="status-line" role="status" aria-live="polite">每次抓取一篇，最长等待 60 秒。</p>
-      <p class="small muted">图片仅保留链接；遇到微信验证需人工处理。结果仅保留在当前页面，下载后可保存到本地。</p>
+      <p class="small muted">成功抓取的文章自动保存到 NAS，可在下方历史列表重新打开。图片仅保留链接；遇到微信验证需人工处理。</p>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h3>抓取历史</h3><button id="wechatHistoryRefresh" type="button">刷新列表</button></div>
+      <form id="wechatSearchForm" class="toolbar"><label class="field" style="flex:1">搜索历史<input id="wechatSearch" type="search" maxlength="200" placeholder="标题、公众号、作者或链接"></label><button type="submit">搜索</button></form>
+      <p id="wechatHistoryStatus" class="status-line" role="status" aria-live="polite">进入后加载历史</p>
+      <div id="wechatHistoryItems" style="display:grid;gap:12px"></div>
+      <div class="action-row"><button id="wechatHistoryPrev" type="button" disabled>上一页</button><span id="wechatHistoryPage" class="muted"></span><button id="wechatHistoryNext" type="button" disabled>下一页</button></div>
     </section>
     <section id="wechatResult" class="panel" hidden>
       <h2 id="wechatTitle"></h2><p id="wechatMeta" class="muted"></p>
@@ -587,7 +594,7 @@ function switchView(id, button, autoLoad=true){
   if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
-  if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
+  if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='wechatView')void loadWechatHistory();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }
 function toggleCustomDays(){ const mode=document.getElementById('scheduleMode').value; document.getElementById('customDays').style.display=mode==='custom'?'flex':'none'; document.getElementById('monthDayField').hidden=mode!=='monthly'; }
@@ -897,12 +904,12 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/proxy-groups.js?v=20261102-layout"></script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
-<script src="/static/wechat.js?v=20261103"></script>
+<script src="/static/wechat.js?v=20261103-history"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
 <script src="/static/android-setup.js?v=20261022-local-priority"></script>
-<script src="/static/view-state.js?v=20261009-tab-map"></script>
+<script src="/static/view-state.js?v=20261103-wechat-history"></script>
 </body>
 </html>

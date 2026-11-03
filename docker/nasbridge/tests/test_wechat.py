@@ -1,8 +1,10 @@
 import asyncio
 import unittest
-from unittest.mock import patch
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 import httpx
+import psycopg2
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -11,6 +13,10 @@ from app import wechat
 
 class WechatTest(unittest.TestCase):
     def setUp(self):
+        writer = patch.object(wechat, 'save_article', side_effect=lambda payload, url: {
+            **payload, 'url': url, 'history_id': wechat.article_id(url)})
+        writer.start()
+        self.addCleanup(writer.stop)
         app = FastAPI()
         app.include_router(wechat.router)
         self.client = TestClient(app)
@@ -37,6 +43,7 @@ class WechatTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['images'], ['https://image.test/a'])
         self.assertEqual(response.headers['cache-control'], 'no-store')
+        self.assertEqual(response.json()['history_id'], wechat.article_id(self.url))
 
     def test_health(self):
         response = self.call(lambda r: httpx.Response(200, json={'ok': True, 'version': '0.1.0'}), health=True)
@@ -78,6 +85,69 @@ class WechatTest(unittest.TestCase):
             self.assertEqual(self.client.post('/api/wechat/read', json={'url': self.url}).status_code, 409)
         finally:
             wechat._read_lock.release()
+
+    def test_failed_save_keeps_downloadable_result(self):
+        with patch.object(wechat, 'save_article', side_effect=psycopg2.OperationalError('offline')):
+            response = self.call(lambda r: httpx.Response(200, json={'title': '文章', 'markdown': '正文'}))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('保存失败', response.json()['history_error'])
+        self.assertEqual(response.json()['markdown'], '正文')
+
+
+class WechatHistoryTest(unittest.TestCase):
+    def setUp(self):
+        app = FastAPI()
+        app.include_router(wechat.router)
+        self.client = TestClient(app)
+        self.connection = MagicMock()
+        self.cursor = self.connection.cursor.return_value.__enter__.return_value
+        fixture = patch.object(wechat, 'history_connection', return_value=self.connection)
+        fixture.start()
+        self.addCleanup(fixture.stop)
+
+    def test_upsert_and_identity(self):
+        first = 'https://mp.weixin.qq.com/s?__biz=abc&mid=1&idx=1&sn=token&scene=3'
+        second = 'https://mp.weixin.qq.com/s?idx=1&mid=1&__biz=abc&sn=other'
+        self.assertEqual(wechat.article_id(first), wechat.article_id(second))
+        self.assertEqual(wechat.article_id('http://mp.weixin.qq.com/s/abc?scene=1'), wechat.article_id('https://mp.weixin.qq.com/s/abc'))
+        self.assertNotEqual(wechat.article_id(first), wechat.article_id(second.replace('idx=1', 'idx=2')))
+        result = wechat.save_article({'title': '标题', 'markdown': '正文', 'account': '公众号'}, first)
+        sql, params = self.cursor.execute.call_args.args
+        self.assertIn('ON CONFLICT(id) DO UPDATE', sql)
+        self.assertIn('public.wechat_articles', sql)
+        self.assertEqual(params[0], result['history_id'])
+        self.assertEqual(params[2], '标题')
+        self.assertIn('正文', params[-1])
+        self.connection.close.assert_called_once()
+
+    def test_list_search_and_pagination(self):
+        now = datetime.now(timezone.utc)
+        self.cursor.fetchone.return_value = {'total': 25}
+        self.cursor.fetchall.return_value = [{'id': 'a' * 64, 'title': '文章', 'fetched_at': now}]
+        response = self.client.get('/api/wechat/articles', params={'q': "%' OR 1=1 --", 'page': 2, 'limit': 20})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['total'], 25)
+        self.assertEqual(response.json()['items'][0]['fetched_at'], now.isoformat())
+        sql, params = self.cursor.execute.call_args.args
+        self.assertNotIn("OR 1=1", sql)
+        self.assertEqual(params, ("%' or 1=1 --", 20, 20))
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+        self.assertEqual(self.client.get('/api/wechat/articles?page=0').status_code, 422)
+        self.assertEqual(self.client.get('/api/wechat/articles?limit=101').status_code, 422)
+
+    def test_reopen_missing_and_unavailable(self):
+        now = datetime.now(timezone.utc)
+        self.cursor.fetchone.return_value = {'payload': {'title': '标题', 'markdown': '持久正文'}, 'fetched_at': now}
+        response = self.client.get('/api/wechat/articles/' + 'a' * 64)
+        self.assertEqual(response.json()['markdown'], '持久正文')
+        self.cursor.fetchone.return_value = None
+        self.assertEqual(self.client.get('/api/wechat/articles/' + 'b' * 64).status_code, 404)
+        self.assertEqual(self.client.get('/api/wechat/articles/invalid').status_code, 404)
+        self.connection.cursor.side_effect = psycopg2.OperationalError('secret database details')
+        for path in ['/api/wechat/articles', '/api/wechat/articles/' + 'a' * 64]:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 503)
+            self.assertNotIn('secret', response.text)
 
 
 if __name__ == '__main__':
