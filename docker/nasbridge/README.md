@@ -147,6 +147,16 @@ Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_rev
 
 其他模块说明见 [ALIYUN.md](ALIYUN.md)、[ZEROTIER.md](ZEROTIER.md) 与 [GEOFENCE.md](GEOFENCE.md)。
 
+## 公众号文章抓取
+
+导航中的“公众号文章”调用单独部署的 `wechat-article-reader`，支持单篇链接抓取、正文预览、复制和 Markdown/JSON 下载。兼容 `/s/文章标识` 与包含 `__biz` 等查询参数的长链接。默认保留正文图片链接，可取消；不会下载图片，JSON 中的图片数组与封面仍保留。结果只在当前页面内存中保留，刷新前请下载保存。
+
+在 NAS 的真实 `config/config.yaml` 添加 `wechat_reader.base_url`，值为读取服务的 HTTP 地址及端口（18765）。与面板同宿主机时可用 `http://host.docker.internal:18765`，也可填写 NAS 内网地址。现有配置未包含此项时会明确提示未配置；无需覆盖其他配置。可通过 `NASBRIDGE_WECHAT_READER_URL` 环境变量覆盖，Compose 模板已加入该变量，现有 `compose.yaml` 使用环境变量时需同步添加。
+
+后端接口：`GET /api/wechat/health`；`POST /api/wechat/read`，JSON 请求体为 `{"url":"https://mp.weixin.qq.com/s/ARTICLE_ID","images":true}`。服务器固定调用上游 JSON 模式和 `browser=never`，编码完整链接，绕过环境代理访问局域网服务；最长等待 60 秒。同一面板进程最多抓取一篇，不自动重试。微信验证、删除、屏蔽、过期等错误会直接提示；健康检查只说明服务在线，抓取后的标题和正文仍需核对。沿用面板现有访问控制，仅在可信网络使用。
+
+验证：`python -m unittest discover -s tests -p test_wechat.py -v`，使用模拟上游，不访问真实文章。
+
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
 
 ZeroTier 页的“下载 planet”通过现有 SSH 连接读取控制器 `ztncui` 容器中的 `/var/lib/zerotier-one/planet`，浏览器保存的文件名为 `planet`。无需选择网络，也无需新增配置。下载的是控制器当前使用的文件；若需要自建 Planet，请先在控制器完成生成和替换。接口 `GET /api/zerotier/planet` 返回二进制附件，文件不存在或读取失败时会在页面提示。

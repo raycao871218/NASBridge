@@ -1996,3 +1996,6 @@ app.include_router(geofence_router)
 
 from .home import router as home_router
 app.include_router(home_router)
+
+from .wechat import router as wechat_router
+app.include_router(wechat_router)

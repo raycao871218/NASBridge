@@ -2,6 +2,10 @@ app:
   name: NASBridge
   public_base_url: "http://nas-ip:18080"
 
+# Existing wechat-article-reader HTTP service (server-side requests, no CORS needed).
+wechat_reader:
+  base_url: "http://host.docker.internal:18765"
+
 mihomo:
   url: "http://host.docker.internal:9090"
   secret_env: "MIHOMO_SECRET"

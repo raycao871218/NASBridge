@@ -205,6 +205,7 @@
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="rhinoView" onclick="switchView('rhinoView',this)">每日任务</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="videosView" onclick="switchView('videosView',this)">视频</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="wechatView" onclick="switchView('wechatView',this)">公众号文章</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="opsView" onclick="switchView('opsView',this)">证书与反向代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="aliyunView" onclick="switchView('aliyunView',this)">阿里云安全组</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
@@ -269,6 +270,24 @@
       <label class="field">搜索视频标题<input id="videosQuery" type="search" placeholder="输入标题关键词" maxlength="200"></label>
       <p id="videosStatus" class="status-line" role="status">进入后加载视频</p>
       <div id="videoItems"></div>
+    </section>
+  </section>
+  <section id="wechatView" class="view">
+    <div class="section-heading"><div><h2>公众号文章</h2><p>粘贴微信文章链接，抓取正文并导出。</p></div><button id="wechatHealth" type="button">检查服务</button></div>
+    <section class="panel">
+      <form id="wechatForm">
+        <label class="field">文章链接<input id="wechatUrl" type="url" required maxlength="8192" placeholder="https://mp.weixin.qq.com/s/…"></label>
+        <div class="action-row"><label class="check"><input id="wechatImages" type="checkbox" checked>保留正文图片链接</label><button id="wechatRead" class="primary" type="submit">抓取文章</button></div>
+      </form>
+      <p id="wechatStatus" class="status-line" role="status" aria-live="polite">每次抓取一篇，最长等待 60 秒。</p>
+      <p class="small muted">图片仅保留链接；遇到微信验证需人工处理。结果仅保留在当前页面，下载后可保存到本地。</p>
+    </section>
+    <section id="wechatResult" class="panel" hidden>
+      <h2 id="wechatTitle"></h2><p id="wechatMeta" class="muted"></p>
+      <div class="action-row"><button id="wechatCopy" type="button">复制 Markdown</button><button id="wechatMarkdown" type="button">下载 Markdown</button><button id="wechatJson" type="button">下载 JSON</button><a id="wechatOriginal" target="_blank" rel="noopener noreferrer">打开原文</a></div>
+      <p id="wechatWarning" class="status-line warning"></p>
+      <div id="wechatBody" style="margin-top:20px"></div>
+      <details style="margin-top:20px"><summary>Markdown 原文</summary><pre id="wechatRaw" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
     </section>
   </section>
   <section id="geofenceView" class="view">
@@ -878,6 +897,7 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/proxy-groups.js?v=20261102-layout"></script>
 <script src="/static/sms.js?v=20261015-relative-date"></script>
 <script src="/static/videos.js?v=20261015-dates"></script>
+<script src="/static/wechat.js?v=20261103"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
 <script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
