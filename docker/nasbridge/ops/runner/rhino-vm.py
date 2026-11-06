@@ -10,6 +10,7 @@ import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from rhino_backfill import FIRST_DATE, for_target, parse_target
 from rhino_events import event
 
 
@@ -18,7 +19,6 @@ HERE = Path(__file__).resolve().parent
 PROXY = "http://127.0.0.1:7890"
 FEED = "https://www.youtube.com/feeds/videos.xml?channel_id=UCFQsi7WaF5X41tcuOryDk8w"
 CHANNEL_URL = "https://www.youtube.com/@RhinoFinance/videos"
-START = dt.date(2026, 10, 8)
 ATOM = "{http://www.w3.org/2005/Atom}"
 YT = "{http://www.youtube.com/xml/schemas/2015}"
 
@@ -42,7 +42,7 @@ def feed_entries(known):
         for item in tree.findall(f"{ATOM}entry"):
             published = dt.datetime.fromisoformat(item.findtext(f"{ATOM}published").replace("Z", "+00:00"))
             date = published.astimezone(dt.timezone(dt.timedelta(hours=8))).date()
-            if date >= START:
+            if date >= FIRST_DATE:
                 entries.append((published, item.findtext(f"{YT}videoId")))
     else:
         print(f"RSS_UNAVAILABLE {type(feed_error).__name__}: {feed_error}; falling back to yt-dlp channel listing", flush=True)
@@ -81,7 +81,7 @@ def feed_entries(known):
                 if parts[1] == "subscriber_only":
                     break
                 published_date = dt.datetime.strptime(parts[0], "%Y%m%d").date()
-                if published_date >= START:
+                if published_date >= FIRST_DATE:
                     published = dt.datetime.combine(published_date, dt.time(), tzinfo=dt.timezone.utc)
                     entries.append((published, video_id))
                 break
@@ -92,21 +92,101 @@ def feed_entries(known):
     return [video_id for _, video_id in sorted(entries)]
 
 
-def download():
+def channel_entries(base):
+    page_size = 50
+    first = 1
+    while True:
+        listing = subprocess.run([*base, "--flat-playlist", "--lazy-playlist",
+                                  "--playlist-items", f"{first}:{first + page_size - 1}",
+                                  "--print", "%(id)s\t%(availability)s", CHANNEL_URL],
+                                 check=True, text=True, capture_output=True, timeout=90)
+        rows = listing.stdout.splitlines()
+        yield from rows
+        if len(rows) < page_size:
+            return
+        first += page_size
+
+
+def historical_entries(target, indexed):
+    base = [
+        "/usr/local/bin/yt-dlp", "--ignore-config", "--proxy", PROXY, "--js-runtimes", "node",
+        "--remote-components", "ejs:github", "--cookies", str(HERE / "youtube-cookies.txt"),
+        "--no-ignore-errors", "--skip-download",
+    ]
+    matches = []
+    seen = set()
+    for line in channel_entries(base):
+        video_id, availability = line.split("\t")
+        if not re.fullmatch(r'[A-Za-z0-9_-]{11}', video_id):
+            raise RuntimeError("Channel listing has an invalid video ID")
+        if video_id in seen or availability in {"subscriber_only", "private", "premium_only"}:
+            continue
+        seen.add(video_id)
+        if video_id in indexed:
+            upload_day, _ = indexed[video_id]
+        else:
+            metadata = subprocess.run([*base, "--no-playlist", "--print", "%(upload_date)s\t%(availability)s",
+                                       f"https://www.youtube.com/watch?v={video_id}"],
+                                      check=True, text=True, capture_output=True, timeout=90)
+            upload_date, availability = metadata.stdout.strip().split("\t")
+            if availability in {"subscriber_only", "private", "premium_only"}:
+                continue
+            if not re.fullmatch(r"[0-9]{8}", upload_date):
+                raise RuntimeError("Video upload date is unavailable")
+            upload_day = dt.datetime.strptime(upload_date, "%Y%m%d").date()
+        # The channel's Videos tab is newest first. Known dates avoid re-querying archived uploads.
+        if upload_day < target:
+            break
+        if upload_day == target:
+            matches.append(video_id)
+    if not seen:
+        raise RuntimeError("Channel listing has no readable public videos")
+    return matches
+
+
+def indexed_media(videos):
+    try:
+        rows = (ROOT / ".rhino-finance-video-index.tsv").read_text(encoding="utf-8-sig").splitlines()
+    except FileNotFoundError:
+        return {}
+    indexed = {}
+    for row in rows:
+        video_id, separator, path = row.partition("\t")
+        file = videos / Path(path.replace("\\", "/")).name
+        if not separator or not re.match(r"[0-9]{8}[-_ ]", file.name) or file.suffix.lower() != ".mp4":
+            continue
+        try:
+            upload_day = dt.datetime.strptime(file.name[:8], "%Y%m%d").date()
+        except ValueError:
+            continue
+        indexed[video_id] = (upload_day, file)
+    return indexed
+
+
+def download(target=None):
     event('discover', message='正在检查频道更新')
     videos = ROOT / "视频"
     archive = videos / ".rhino-finance-archive.txt"
     known = set(re.findall(r"^youtube\s+(\S+)", archive.read_text(encoding="utf-8"), re.M)) if archive.exists() else set()
-    pending = [video_id for video_id in feed_entries(known) if video_id not in known]
-    event('discover', 'success', f'发现 {len(pending)} 部待下载视频', pending_count=len(pending))
+    if target:
+        indexed = indexed_media(videos)
+        matches = historical_entries(target, indexed)
+        archived = {video_id for video_id, (day, file) in indexed.items() if day == target and file.is_file()}
+        pending = [video_id for video_id in matches if video_id not in archived]
+        event('discover', 'success', f'{target} 找到 {len(matches)} 部公开视频，{len(pending)} 部待下载',
+              pending_count=len(pending), matched_count=len(matches))
+    else:
+        pending = [video_id for video_id in feed_entries(known) if video_id not in known]
+        event('discover', 'success', f'发现 {len(pending)} 部待下载视频', pending_count=len(pending))
     event('download', message=f'待下载 {len(pending)} 部视频')
     for video_id in pending:
         event('download', message='正在下载视频与音频', item=video_id)
+        archive_options = ["--no-download-archive"] if target and video_id in known else ["--download-archive", str(archive)]
         command = [
             "/usr/local/bin/yt-dlp", "--proxy", PROXY,
             "--js-runtimes", "node", "--remote-components", "ejs:github",
             "--cookies", str(HERE / "youtube-cookies.txt"),
-            "--download-archive", str(archive), "--no-playlist", "--progress", "--newline", "--progress-delta", "5",
+            *archive_options, "--no-playlist", "--progress", "--newline", "--progress-delta", "5",
             "--windows-filenames", "--merge-output-format", "mp4",
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "-P", str(videos), "-o", "%(upload_date)s-%(title).150B.%(ext)s",
@@ -126,7 +206,7 @@ def stamp(seconds):
     return f"{total // 3600:02d}:{(total // 60) % 60:02d}:{total % 60:02d}"
 
 
-def transcribe():
+def transcribe(target=None):
     event('transcribe', message='正在检查待转写视频')
     from faster_whisper import WhisperModel
 
@@ -139,7 +219,8 @@ def transcribe():
             parts = line.split("\t", 1)
             if len(parts) == 2:
                 sources[Path(parts[1].replace("\\", "/")).stem] = f"https://www.youtube.com/watch?v={parts[0]}"
-    pending = [v for v in sorted(video_dir.glob("*.mp4")) if not (text_dir / f"{v.stem}.txt").exists()]
+    pending = [v for v in sorted(video_dir.glob("*.mp4"))
+               if for_target(v, target) and not (text_dir / f"{v.stem}.txt").exists()]
     if not pending:
         print("NO_NEW_TRANSCRIPTS", flush=True)
         event('transcribe', 'skipped', '没有待转写的视频')
@@ -176,6 +257,7 @@ def transcribe():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--date", type=parse_target)
     args = parser.parse_args()
     if not ROOT.is_dir() or not os.path.ismount("/mnt/azkaban-home"):
         raise RuntimeError("Azkaban SMB share is not mounted")
@@ -185,12 +267,12 @@ def main():
     event('check', 'success', '共享目录已就绪')
     download_error = None
     try:
-        download()
+        download(args.date)
     except Exception as error:
         download_error = error
         print(f"DOWNLOAD_FAILED {type(error).__name__}: {error}", file=sys.stderr, flush=True)
         event('download', 'failed', '视频获取失败，继续处理已有视频')
-    transcribe()
+    transcribe(args.date)
     if download_error is not None:
         raise download_error
 

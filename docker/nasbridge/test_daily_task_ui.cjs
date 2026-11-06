@@ -1,7 +1,15 @@
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const nodes=Object.fromEntries(['dailyTaskRun','dailyTaskManual','dailyTaskManualHint','dailyTaskRunStatus','dailyTaskRetryTitle','dailyTaskRetryDetail','dailyTaskRetryTime','dailyTaskShutdownGuard'].map(id=>[id,{}]));
-let calls=0,resolveRequest;
-const ctx=vm.createContext({document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;return new Promise(resolve=>{resolveRequest=resolve;});},loadDailyTasks:async()=>{vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:false,running:true}})',ctx);}});
+nodes.dailyTaskDateInput={value:'',validity:{valid:true}};
+nodes.dailyTaskDayStatus={dataset:{}};
+nodes.rhinoView={classList:{contains:()=>true}};
+let calls=0,resolveRequest,requestBody;
+const dayRequests=[];
+const ctx=vm.createContext({document:{getElementById:id=>nodes[id]},dailyTaskStatusLabel:String,
+  fetch:(url,options)=>{
+    if(url.includes('/day?'))return new Promise(resolve=>dayRequests.push({url,resolve}));
+    calls++;requestBody=JSON.parse(options.body);return new Promise(resolve=>{resolveRequest=resolve;});
+  },loadDailyTasks:async()=>{vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:false,running:true}})',ctx);}});
 vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-control.js','utf8'),ctx);
 (async()=>{
   const display=control=>vm.runInContext('renderDailyTaskControl('+JSON.stringify({status:'ok',manual_control:control})+')',ctx);
@@ -30,10 +38,30 @@ vm.runInContext(fs.readFileSync(__dirname+'/app/static/daily-task-control.js','u
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
   const first=vm.runInContext('triggerDailyTask()',ctx);await vm.runInContext('triggerDailyTask()',ctx);
   assert.equal(calls,1);assert.equal(nodes.dailyTaskRun.disabled,true);
+  assert.deepEqual(requestBody,{});
   resolveRequest({ok:true,json:async()=>({message:'已提交每日任务'})});await first;
   assert.equal(nodes.dailyTaskRunStatus.textContent,'已提交每日任务');assert.equal(nodes.dailyTaskRun.disabled,true);
   vm.runInContext('renderDailyTaskControl({status:"ok",manual_control:{show:true,can_trigger:true}})',ctx);
   const failed=vm.runInContext('triggerDailyTask()',ctx);resolveRequest({ok:false,json:async()=>({detail:'任务正在执行'})});await failed;
   assert.match(nodes.dailyTaskRunStatus.textContent,/任务正在执行/);assert.equal(nodes.dailyTaskRun.disabled,true);
-  console.log('PASS: control stays visible, busy/error disables, duplicate click prevented, accepted/conflict refreshed');
+
+  const dates={today:'2026-11-06',first_date:'2026-10-08',backfill:true,can_backfill:true,can_trigger:true};
+  display(dates);
+  assert.equal(nodes.dailyTaskDateInput.value,'2026-11-06');
+  const today=dayRequests.at(-1);
+  nodes.dailyTaskDateInput.value='2026-11-05';nodes.dailyTaskDateInput.onchange();
+  const historical=dayRequests.at(-1);
+  assert.match(historical.url,/2026-11-05$/);
+  historical.resolve({ok:true,json:async()=>({archived_count:1,latest_run:{status:'failed'}})});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(nodes.dailyTaskDayStatus.textContent,/已成功归档 1 部视频.*failed/);
+  today.resolve({ok:true,json:async()=>({archived_count:0,latest_run:null})});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(nodes.dailyTaskDayStatus.textContent,/2026-11-05.*已成功归档/);
+  display({...dates,can_backfill:false});assert.equal(nodes.dailyTaskRun.disabled,true);
+  display(dates);
+  const runPast=vm.runInContext('triggerDailyTask()',ctx);
+  assert.deepEqual(requestBody,{date:'2026-11-05'});
+  resolveRequest({ok:true,json:async()=>({message:'已提交历史任务'})});await runPast;
+  console.log('PASS: date selection, archive evidence, stale responses, dated submission and concurrency controls');
 })().catch(error=>{console.error(error);process.exitCode=1;});

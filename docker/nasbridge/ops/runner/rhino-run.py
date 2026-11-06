@@ -18,6 +18,7 @@ from pathlib import Path
 import rhino_db
 from rhino_events import PREFIX
 from rhino_schedule import record_discovery
+from rhino_backfill import take_target
 
 HERE = Path(__file__).resolve().parent
 PYTHON = HERE / '.venv/bin/python'
@@ -62,6 +63,8 @@ class Tracker:
                          invocation_id=os.environ.get('INVOCATION_ID', ''), pid=os.getpid(),
                          started_at=payload['started_at'], heartbeat_at=stamp(), last_progress_at=stamp(),
                          current_stage='check', stages=[dict(id=k, label=v, status='pending',timeout_seconds=LIMITS[k]) for k,v in STAGES])
+        if payload.get('target_date'):
+            self.data['target_date'] = payload['target_date']
         self.event(dict(stage='check', state='running', message='正在准备任务'))
 
     def event(self, event):
@@ -79,12 +82,13 @@ class Tracker:
             row.pop('percent',None)
         row.setdefault('started_at', stamp())
         row.update(status=event.get('state', 'running'), message=str(event.get('message', ''))[:500])
-        for key in ('item', 'percent', 'pending_count'):
+        for key in ('item', 'percent', 'pending_count', 'matched_count'):
             if key in event: row[key] = event[key]
         reason = event.get('skill_reason')
         if stage in {'summary_skill', 'sync'} and isinstance(reason, str) and reason.strip():
             self.data['skill_reason'] = ' '.join(reason.split())[:500]
-        if stage == 'discover' and row['status'] == 'success' and isinstance(event.get('pending_count'), int):
+        if (stage == 'discover' and row['status'] == 'success' and not self.payload.get('target_date')
+                and isinstance(event.get('pending_count'), int)):
             record_discovery(self.payload['started_at'], event['pending_count'])
         if row['status'] != 'running': row['finished_at'] = stamp()
         self.last_activity = time.monotonic()
@@ -150,7 +154,10 @@ def terminate(process):
 
 def run_stage(name, tracker):
     env = dict(os.environ, PYTHONUNBUFFERED='1')
-    process = subprocess.Popen([str(PYTHON), str(HERE/name)], stdout=subprocess.PIPE,
+    command = [str(PYTHON), str(HERE/name)]
+    if tracker.payload.get('target_date'):
+        command.extend(['--date', tracker.payload['target_date']])
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, start_new_session=True, env=env)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
@@ -231,7 +238,11 @@ def save(payload):
 
 def main():
     start=datetime.now(timezone.utc)
-    payload=dict(run_id=str(uuid.uuid4()), run_date=start.astimezone(CHINA).date().isoformat(), started_at=start.isoformat(),status='running')
+    target = take_target()
+    payload=dict(run_id=str(uuid.uuid4()), run_date=(target or start.astimezone(CHINA).date()).isoformat(),
+                 started_at=start.isoformat(), status='running')
+    if target:
+        payload['target_date'] = target.isoformat()
     save(payload)  # Fail before launching work if a new run cannot be recorded.
     tracker=Tracker(payload)
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(TaskStopped()))

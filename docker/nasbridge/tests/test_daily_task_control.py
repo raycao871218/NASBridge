@@ -1,11 +1,12 @@
 import importlib.util
+from datetime import date, datetime, timezone
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from app import main, daily_task_control as control
+from app import main, daily_task_control as control, mobile_api
 
 
 class DailyTaskControlTest(unittest.TestCase):
@@ -14,6 +15,9 @@ class DailyTaskControlTest(unittest.TestCase):
         self.cursor = self.connection.cursor.return_value.__enter__.return_value
         self.db = patch.object(main, 'postgres_connection', return_value=self.connection)
         self.db.start()
+        clock = patch.object(control, 'today', return_value=date(2026, 11, 6))
+        clock.start()
+        self.addCleanup(clock.stop)
         app = FastAPI()
         app.include_router(control.router)
         self.client = TestClient(app)
@@ -37,6 +41,38 @@ class DailyTaskControlTest(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         remote.assert_called_once_with('start')
         self.assertFalse(any('rhino_daily_runs' in call.args[0] for call in self.cursor.execute.call_args_list))
+
+    def test_selected_date_only_changes_the_fixed_start_command_for_past_days(self):
+        for day, command in [('2026-11-05', 'start 2026-11-05'), ('2026-11-06', 'start')]:
+            self.cursor.fetchone.return_value = (True,)
+            with patch.object(control, 'control_command', return_value={'accepted': True}) as remote:
+                response = self.client.post('/api/daily-tasks/run', json={'date': day})
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual(response.json()['date'], day)
+            remote.assert_called_once_with(command)
+        for day in ['2026-11-07', '2026-10-07', '2026-11-31', '20261105', '2026-11-05; start']:
+            self.assertEqual(self.client.post('/api/daily-tasks/run', json={'date': day}).status_code, 422)
+
+    def test_archive_evidence_is_separate_from_latest_run(self):
+        started = datetime(2026, 11, 6, tzinfo=timezone.utc)
+        progress = {'target_date': '2026-11-05', 'stages': [
+            {'id': 'discover', 'status': 'success', 'matched_count': 0},
+        ]}
+        with patch.object(mobile_api, 'archived_video_count', return_value=0):
+            self.cursor.fetchone.return_value = ('success', started, progress)
+            result = self.client.get('/api/daily-tasks/day?date=2026-11-05')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()['archived_count'], 0)
+        self.assertEqual(result.json()['latest_run']['matched_count'], 0)
+        self.assertEqual(self.cursor.execute.call_args.args[1], (date(2026, 11, 5),))
+        with patch.object(mobile_api, 'archived_video_count', return_value=2):
+            self.cursor.fetchone.return_value = ('failed', started, None)
+            result = self.client.get('/api/daily-tasks/day?date=2026-11-05')
+        self.assertEqual(result.json()['archived_count'], 2)
+        self.assertEqual(result.json()['latest_run']['status'], 'failed')
+        self.assertIsNone(result.json()['latest_run']['matched_count'])
+        with patch.object(mobile_api, 'archived_video_count', side_effect=OSError):
+            self.assertEqual(self.client.get('/api/daily-tasks/day?date=2026-11-05').status_code, 503)
 
     def test_busy_request_or_running_service_blocks(self):
         for rows in [[(False,)], [(True,)]]:

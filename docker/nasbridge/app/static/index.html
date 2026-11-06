@@ -492,6 +492,9 @@
     <section class="grid" id="dailyTaskMetrics"><div class="panel muted">加载中…</div></section>
     <section id="dailyTaskManual" class="panel">
       <div class="panel-header"><div><h2>手动执行每日任务</h2><p id="dailyTaskManualHint" class="muted small">正在确认任务状态…</p></div><button id="dailyTaskRun" type="button" class="primary" disabled>手动执行</button></div>
+      <label for="dailyTaskDateInput">视频日期</label>
+      <input id="dailyTaskDateInput" type="date" required disabled aria-describedby="dailyTaskDayStatus">
+      <p id="dailyTaskDayStatus" class="status-line" role="status"></p>
       <p id="dailyTaskRunStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
     <section id="dailyTaskRetry" class="panel" aria-live="polite">
@@ -594,7 +597,7 @@
   </form>
 </dialog>
 <script src="/static/home.js?v=20261021-identity"></script>
-<script src="/static/daily-task-control.js?v=20261023-retry-status"></script>
+<script src="/static/daily-task-control.js?v=20261106-backfill"></script>
 <script src="/static/daily-task-progress.js?v=20261103-skill-review"></script>
 <script src="/static/source-aliases.js?v=20261021"></script>
 <script>
@@ -609,6 +612,7 @@ function switchView(id, button, autoLoad=true){
   if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
+  if(id==='rhinoView')void loadDailyTaskDay();
   if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }

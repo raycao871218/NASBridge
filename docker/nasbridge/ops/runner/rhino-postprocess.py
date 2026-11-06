@@ -1,11 +1,13 @@
 """Create missing summaries and refresh the Rhino Finance skill on ubuntu-server."""
 
+import argparse
 import os
 import json
 import shutil
 import subprocess
 import uuid
 from pathlib import Path
+from rhino_backfill import for_target, parse_target
 from rhino_events import event
 
 
@@ -17,12 +19,12 @@ MIRROR = ROOT / "技能" / "rhino-finance-lens"
 PROXY = "http://127.0.0.1:7890"
 
 
-def main():
+def main(target=None):
     event('summary_skill', message='正在检查待生成概要')
     if not os.path.ismount("/mnt/azkaban-home"):
         raise RuntimeError("Azkaban SMB share is not mounted")
     pending = [file for file in sorted(TEXT.glob("*.txt"))
-               if not (SUMMARY / f"{file.stem}.md").exists()]
+               if for_target(file, target) and not (SUMMARY / f"{file.stem}.md").exists()]
     if not pending:
         print("NO_NEW_SUMMARIES", flush=True)
         event('summary_skill', 'skipped', '没有新原文，概要及分析框架保持不变',
@@ -94,4 +96,6 @@ def read_review_reason(path):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", type=parse_target)
+    main(parser.parse_args().date)
