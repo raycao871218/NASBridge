@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -eo pipefail
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
 ###
 # 此脚本用于自动更新证书，并自动更新到Synology DSM中
 # 1. 首先需要在.env文件中配置好环境变量
@@ -10,16 +16,13 @@
 
 # 加载环境变量
 if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | xargs)
+    set -a
+    source .env
+    set +a
 else
     echo -e "${RED}错误：未找到 .env 文件${NC}"
     exit 1
 fi
-
-# 定义颜色
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
 
 # 打印环境变量
 echo "环境变量配置列表:"
@@ -42,21 +45,21 @@ if ! docker ps -a | grep -q "${CERT_DOCKER_CONTAINER}"; then
     exit 1
 fi
 
-generateCrtCommand="acme.sh --force --log --issue --server ${CERT_SERVER} --dns ${CERT_DNS_TYPE} --dnssleep ${CERT_DNS_SLEEP} -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\""
+generateCrtCommand=(acme.sh --force --log --issue --server "$CERT_SERVER" --dns "$CERT_DNS_TYPE" --dnssleep "$CERT_DNS_SLEEP" -d "$DOMAIN_NAME" -d "*.$DOMAIN_NAME")
 
-installCrtCommand="acme.sh --deploy -d \"${DOMAIN_NAME}\" -d \"*.${DOMAIN_NAME}\" --deploy-hook synology_dsm"
+installCrtCommand=(acme.sh --deploy -d "$DOMAIN_NAME" -d "*.$DOMAIN_NAME" --deploy-hook synology_dsm)
 
 # 生成证书
-docker exec ${CERT_DOCKER_CONTAINER} $generateCrtCommand
+docker exec "$CERT_DOCKER_CONTAINER" "${generateCrtCommand[@]}"
 
-# 设置证书目录权限为755（所有者可读写执行，其他用户可读和执行）
-docker exec ${CERT_DOCKER_CONTAINER} chmod -R 755 "/root/.acme.sh/${DOMAIN_NAME}"
+# 证书目录和私钥仅允许所有者访问。
+certificate_dir="/root/.acme.sh/${NAS_CERT_SITE_NAME:-$DOMAIN_NAME}"
+docker exec "$CERT_DOCKER_CONTAINER" find "$certificate_dir" -type d -exec chmod 700 {} \;
 
-# 设置证书文件权限为644（所有者可读写，其他用户可读）
-docker exec ${CERT_DOCKER_CONTAINER} find "/root/.acme.sh/${DOMAIN_NAME}" -type f -exec chmod 644 {} \;
+docker exec "$CERT_DOCKER_CONTAINER" find "$certificate_dir" -type f -exec chmod 600 {} \;
 
 # 部署证书到Synology DSM
-docker exec ${CERT_DOCKER_CONTAINER} $installCrtCommand
+docker exec "$CERT_DOCKER_CONTAINER" "${installCrtCommand[@]}"
 
 # 记录最近一次成功申请时间（Unix时间戳），供OpenClaw冷却判断
 NAS_CERT_ISSUE_MARKER="${NAS_CERT_ISSUE_MARKER:-./log/last_cert_issue_at}"

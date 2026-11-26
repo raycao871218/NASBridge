@@ -1,0 +1,27 @@
+/* Shared family: 咕咕咕 / 麻雀会 / 鸟巢. Paper, wax pigment, and legible ink. */
+:root{color-scheme:light;--shadow:2px 3px 0 #ada59b24;--accent:#4d669d}
+body{background-color:var(--bg);background-image:radial-gradient(#84786412 .8px,transparent .8px),radial-gradient(#84786409 .7px,transparent .7px);background-size:7px 9px,11px 13px;font-family:ui-rounded,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+main{max-width:1560px;column-gap:28px;padding-top:30px}
+.nest-brand{display:flex;align-items:center;gap:16px}.nest-brand img{flex:none;transform:rotate(-5deg)}
+header{min-height:108px;margin-bottom:28px}header h1{font-size:32px;letter-spacing:4px;line-height:1.5}.header-note{margin-top:6px}
+.eyebrow{padding:0;border:0;background:none;color:var(--muted);font-size:11px;letter-spacing:2px}
+.view-tabs{background:#fffcf4;border:1.5px solid #a39ba4;border-radius:17px 23px 19px 14px;box-shadow:var(--shadow);backdrop-filter:none;padding:16px 12px}
+.view-tabs::before{content:"鸟巢 · 生活手册";font-size:12px;padding-bottom:18px;letter-spacing:1px}
+.view-tab{min-height:46px;font-size:13px;border-radius:9px 14px 11px 8px}.view-tab.active{color:#514536;border-color:#af947b;background:#f0c8aa;box-shadow:1px 2px 0 #ad94782a}.view-tab.active::before{background:#916b4d;box-shadow:none}
+.panel,dialog{background:#fffcf4;border:1.5px solid #a39ba4;border-radius:16px 23px 18px 21px / 21px 17px 24px 18px;box-shadow:var(--shadow)}
+.panel{padding:23px;background-image:repeating-linear-gradient(125deg,transparent 0 5px,#9c897004 5px 6px)}
+.section-heading{margin-bottom:24px}.section-heading h2{font-size:24px;letter-spacing:1px}.section-heading h2::after{content:"";display:block;width:62px;height:5px;background:#d48d79;border-radius:45%;transform:rotate(-2deg);margin-top:10px;opacity:.8}
+.grid .panel:nth-child(4n+1){background-color:#edf0e3}.grid .panel:nth-child(4n+2){background-color:#eaf0f8}.grid .panel:nth-child(4n+3){background-color:#f8e7d5}.grid .panel:nth-child(4n){background-color:#eee8f2}
+.metric{font-size:25px}.label{font-size:12px}
+button,.file-button{min-height:44px;border:1.5px solid #8a8a9a;border-radius:9px 14px 11px 8px / 12px 9px 14px 10px;box-shadow:1px 2px 0 #77748522;background:#fffcf4;color:#3b3a49;font-size:13px}
+button:hover,.file-button:hover{background:#eee9df;border-color:#706b75;transform:rotate(-.3deg)}
+button.primary{background:#bacceb;border-color:#7181a0;color:#3b3a49;background-image:repeating-linear-gradient(155deg,transparent 0 3px,#fff9 3px 3.4px)}button.primary:hover{background-color:#adbfdf;border-color:#617291}
+button.danger{color:#a34d46;background:#f9e3d9;border-color:#bc8f85}button.danger:hover{background:#f3d4c9;border-color:#a34d46}
+button:disabled{opacity:.55;transform:none}a{color:#4d669d;text-underline-offset:4px}button:focus-visible,a:focus-visible{outline:3px solid #657da9;outline-offset:3px}
+input:not([type=checkbox]):not([type=file]),select,textarea{background:#f1f0f5;border-color:#a7a1ad;color:#3b3a49;border-radius:9px 12px 8px 11px;min-height:46px}input::placeholder,textarea::placeholder{color:#79717b}
+th{background:#eee9df;color:#514d58}tbody tr:hover td{background:#bacceb1f}.table-scroll{border-color:#c5bcb4;border-radius:11px 15px}.proxy-card{background:#f7f2e8;border-radius:12px 17px 10px 14px}.proxy-card-route code{color:#4d669d}
+.pill,.proxy-badge{background:#eee8f2;color:#514d58;border-color:#b8aabd}code{color:#4d669d}.days label{background:#f4efe5;color:#514d58}.days label:has(input:checked){background:#f0c8aa;border-color:#af947b}
+dialog::backdrop{background:#35313d66;backdrop-filter:blur(2px)}dialog h2{font-size:21px}.delete-target{background:#f8e7d5}
+#footer{padding:14px 3px;font-size:12px}#footer::before{content:"鸟巢 · 把日常安放好　/　"}
+@media(max-width:760px){main{padding:15px}.nest-brand{gap:9px}.nest-brand img{width:58px;height:58px}header{min-height:76px;margin-bottom:18px}header h1{font-size:27px}.eyebrow{font-size:10px}.view-tabs{padding:6px;top:0}.view-tab{min-height:44px;font-size:12px}.view-tab.active{box-shadow:1px 2px 0 #ad94782a}.panel{padding:17px}.section-heading h2{font-size:21px}.topbar-actions{gap:6px}.topbar-actions button{min-height:44px}.grid .panel{padding:14px}.metric{font-size:22px}}
+@media(prefers-reduced-motion:reduce){button:hover,.file-button:hover{transform:none}}

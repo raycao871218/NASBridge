@@ -7,23 +7,55 @@ class Node {
   removeAttribute(key){delete this[key];}
   addEventListener(key,fn){this.events[key]=fn;}
   pause(){this.paused=true;}
-  load(){} scrollIntoView(){} focus(){}
+  load(){this.currentTime=0;this.ended=false;} scrollIntoView(){} focus(){}
 }
 const nodes={};const document={getElementById:id=>nodes[id]??=new Node(),createElement:()=>new Node(),addEventListener(){}};
+const videoSpeed=document.getElementById('videoSpeed');
+videoSpeed.value='1.5';
+videoSpeed.options=['0.5','1','1.25','1.5','2'].map(value=>({value}));
+const storage=new Map();
+const localStorage={getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)};
+const window=new Node();
 let reply={items:[{video_id:'safe-id',title:'<img onerror=alert(1)> 测试视频',size:100,stream_path:'https://untrusted.invalid'},{video_id:'../bad',title:'invalid'}]};
 let fail=false;
-const ctx=vm.createContext({document,AbortController,URLSearchParams,bytes:String,fetch:async()=>({ok:!fail,status:503,json:async()=>reply})});
+const ctx=vm.createContext({document,window,localStorage,AbortController,URLSearchParams,bytes:String,fetch:async()=>({ok:!fail,status:503,json:async()=>reply})});
 vm.runInContext(fs.readFileSync(__dirname+'/app/static/date-format.js','utf8'),ctx);
-vm.runInContext(fs.readFileSync(__dirname+'/app/static/videos.js','utf8'),ctx);
+const videoScript=fs.readFileSync(__dirname+'/app/static/videos.js','utf8');
+vm.runInContext(videoScript,ctx);
 const cards=()=>nodes.videoItems.children.flatMap(group=>group.children[1].children);
 (async()=>{
   await vm.runInContext('loadVideos()',ctx);
   assert.equal(cards().length,1);
   const card=cards()[0];assert.equal(card.children[2].textContent,reply.items[0].title);assert.equal(card.children[1].textContent,'发布日期：日期未知');
   card.onclick();assert.equal(nodes.videoPlayer.src,'/api/videos/safe-id');assert.equal(nodes.videoPlayerPanel.hidden,false);
+  const player=nodes.videoPlayer;
+  player.events.loadedmetadata();assert.equal(player.playbackRate,1.5);
   nodes.videoPlayer.currentTime=55;nodes.videoForward.onclick();assert.equal(nodes.videoPlayer.currentTime,60);
   nodes.videoPlayer.currentTime=3;nodes.videoBack.onclick();assert.equal(nodes.videoPlayer.currentTime,0);
-  nodes.videoSpeed.onchange({target:{value:'1.5'}});assert.equal(nodes.videoPlayer.playbackRate,1.5);
+  videoSpeed.value='2';videoSpeed.onchange();assert.equal(player.playbackRate,2);
+  assert.equal(storage.get('nasbridge.video.speed'),'2');
+  const reloadedSpeed=Object.assign(new Node(),{value:'1.5',options:videoSpeed.options});
+  const reloadedNodes={videoSpeed:reloadedSpeed,videoPlayer:new Node()};
+  const reloadedDocument={...document,getElementById:id=>reloadedNodes[id]??=new Node()};
+  const reloadedContext=vm.createContext({document:reloadedDocument,window:new Node(),localStorage,item:reply.items[0]});
+  vm.runInContext(videoScript,reloadedContext);
+  assert.equal(reloadedSpeed.value,'2');assert.equal(reloadedNodes.videoPlayer.defaultPlaybackRate,2);
+
+  card.onclick();player.events.loadedmetadata();
+  player.currentTime=18.7;player.events.timeupdate();
+  assert.equal(storage.get('nasbridge.video.position.safe-id'),'18');
+  player.currentTime=21.5;window.events.pagehide();
+  assert.equal(storage.get('nasbridge.video.position.safe-id'),'21');
+  vm.runInContext('openVideo(item)',reloadedContext);reloadedNodes.videoPlayer.events.loadedmetadata();
+  assert.equal(reloadedNodes.videoPlayer.currentTime,21);
+  ctx.other={video_id:'other',title:'Other video'};
+  player.currentTime=22.1;vm.runInContext('openVideo(other)',ctx);player.events.loadedmetadata();
+  assert.equal(player.currentTime,0);
+  player.currentTime=8;nodes.videoClose.onclick();
+  card.onclick();player.events.loadedmetadata();assert.equal(player.currentTime,22);
+  player.currentTime=60;player.ended=true;player.events.ended();
+  card.onclick();player.events.loadedmetadata();assert.equal(player.currentTime,0);
+  vm.runInContext('openVideo(other)',ctx);player.events.loadedmetadata();assert.equal(player.currentTime,8);
   nodes.videosQuery.value='不存在';nodes.videosQuery.events.input();assert.equal(nodes.videoItems.children.length,0);assert.match(nodes.videosStatus.textContent,/没有匹配/);
   nodes.videoClose.onclick();assert.equal(nodes.videoPlayerPanel.hidden,true);assert.equal(nodes.videoPlayer.src,undefined);assert.equal(nodes.videoPlayer.paused,true);
   fail=true;await vm.runInContext('loadVideos()',ctx);assert.match(nodes.videosStatus.textContent,/503/);assert.equal(nodes.videosQuery.disabled,false);
@@ -48,5 +80,5 @@ const cards=()=>nodes.videoItems.children.flatMap(group=>group.children[1].child
   assert.equal(nodes.videoItems.children[1].children[0].textContent,'往期视频');
   assert.deepEqual(cards().map(c=>c.children[2].textContent),['new','old','old','unknown']);
   assert.equal(cards()[1].children[1].datetime,'2020-01-02');
-  console.log('PASS: list, text safety, same-origin playback, search, seek bounds, speed, close, failure/retry, empty and stale responses');
+  console.log('PASS: list, text safety, same-origin playback, search, seek bounds, speed and position memory, close, failure/retry, empty and stale responses');
 })().catch(error=>{console.error(error);process.exitCode=1;});

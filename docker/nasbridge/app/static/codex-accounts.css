@@ -1,0 +1,67 @@
+.codex-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.codex-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+#codexCards .codex-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 126px;
+  padding: 20px;
+  border: 1px solid #d4c5ad;
+  border-radius: 18px;
+  background: #fffcf4;
+  color: #3b3a49;
+  text-align: left;
+}
+#codexCards .codex-card.is-current {
+  background: #eef3e8;
+  border-color: #829983;
+}
+#codexCards button.codex-card:not(:disabled):hover,
+#codexCards button.codex-card:focus-visible {
+  background: #edf1fb;
+  border-color: #4d669d;
+}
+.codex-card-email {
+  font-size: 1.07rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.codex-card-label {
+  font-size: .85rem;
+  font-weight: 700;
+  color: #4d669d;
+}
+.codex-card-label.is-current {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #dbe9d9;
+  color: #375d43;
+}
+#codexConfirmEmail {
+  margin-block: 16px 8px;
+}
+.codex-quota,
+.codex-quota-item {
+  display: grid;
+  gap: 4px;
+}
+.codex-quota {
+  gap: 10px;
+  font-size: .88rem;
+  color: #655f68;
+}
+.codex-quota strong {
+  color: #3b3a49;
+}

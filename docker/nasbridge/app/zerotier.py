@@ -1,11 +1,13 @@
 """Remote controller adapter. Token stays on the controller host."""
 import asyncio
+import base64
+import binascii
 import ipaddress
 import json
 import re
 import shlex
 from urllib.parse import urlsplit
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, StrictBool
 
@@ -17,6 +19,10 @@ REMOTE = r'''
 import json,sys,subprocess,urllib.request,urllib.error,time
 args=json.loads(sys.argv[1])
 try:
+ if args['mode']=='planet':
+  code="import base64,json,pathlib\ntry:\n    with pathlib.Path('/var/lib/zerotier-one/planet').open('rb') as f:data=f.read(1024*1024+1)\nexcept FileNotFoundError:\n    print(json.dumps({'missing':True}))\nelse:\n    if not data or len(data)>1024*1024:raise ValueError('invalid planet size')\n    print(json.dumps({'planet':base64.b64encode(data).decode('ascii')}))\n"
+  print(subprocess.check_output(['docker','exec','ztncui','python3','-c',code],timeout=10).decode())
+  sys.exit(0)
  token=subprocess.run(['docker','exec','ztncui','cat','/var/lib/zerotier-one/authtoken.secret'],capture_output=True,check=True,timeout=10).stdout.decode().strip()
  def api(path,body=None):
   req=urllib.request.Request('http://127.0.0.1:9993'+path,data=None if body is None else json.dumps(body).encode(),headers={'X-ZT1-AUTH':token,'Content-Type':'application/json'})
@@ -68,7 +74,7 @@ try:
 except urllib.error.HTTPError as e:
  print(json.dumps({'error':'ZeroTier API HTTP '+str(e.code)}))
 except Exception as e:
- print(json.dumps({'error':'ZeroTier 查询或更新失败：'+type(e).__name__+'；如已提交修改，请刷新成员列表核对'}))
+ print(json.dumps({'error':('无法读取 planet 文件，请检查 ztncui 容器中的 /var/lib/zerotier-one/planet：'+type(e).__name__) if args['mode']=='planet' else ('ZeroTier 查询或更新失败：'+type(e).__name__+'；如已提交修改，请刷新成员列表核对')}))
 '''
 
 
@@ -115,6 +121,24 @@ async def networks():
     result = await asyncio.to_thread(remote, {'mode':'networks'})
     result['default_network'] = load_config().get('zerotier', {}).get('default_network_id')
     return result
+
+
+@router.get('/planet')
+async def download_planet():
+    result = await asyncio.to_thread(remote, {'mode': 'planet'})
+    if result.get('missing'):
+        raise HTTPException(404, '控制器中未找到 planet 文件')
+    try:
+        data = base64.b64decode(result['planet'], validate=True)
+        if not data or len(data) > 1024 * 1024:
+            raise ValueError('invalid planet size')
+    except (KeyError, ValueError, TypeError, binascii.Error):
+        raise HTTPException(502, '控制器返回的 planet 文件无效') from None
+    return Response(data, media_type='application/octet-stream', headers={
+        'Content-Disposition': 'attachment; filename="planet"',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+    })
 
 
 @router.get('/networks/{network}/members')

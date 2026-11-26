@@ -1,8 +1,12 @@
 import unittest
+import base64
+import io
+import json
+from contextlib import redirect_stdout
 from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from app.zerotier import router
+from app.zerotier import REMOTE, router
 app=FastAPI();app.include_router(router);client=TestClient(app)
 URL='/api/zerotier/networks/0123456789abcdef/members/0123456789'
 class Tests(unittest.TestCase):
@@ -38,3 +42,42 @@ class AdminLinkTests(unittest.TestCase):
   for url,status in [('',404),('javascript:alert(1)',400),('https://user:pass@example.com/',400)]:
    with patch('app.main.load_config',return_value={'zerotier':{'admin_url':url}}):
     self.assertEqual(client.get('/api/zerotier/admin',follow_redirects=False).status_code,status)
+
+
+class PlanetDownloadTests(unittest.TestCase):
+ @patch('app.zerotier.remote')
+ def test_binary_download(self, remote):
+  data=b'\x00\xff\x80planet\r\n'
+  remote.return_value={'planet':base64.b64encode(data).decode('ascii')}
+  response=client.get('/api/zerotier/planet')
+  self.assertEqual(response.status_code,200)
+  self.assertEqual(response.content,data)
+  self.assertEqual(response.headers['content-type'],'application/octet-stream')
+  self.assertEqual(response.headers['content-disposition'],'attachment; filename="planet"')
+  self.assertEqual(response.headers['cache-control'],'no-store')
+  remote.assert_called_once_with({'mode':'planet'})
+
+ @patch('app.zerotier.remote')
+ def test_missing_and_invalid_files(self, remote):
+  for result,status in [({'missing':True},404),({},502),({'planet':'!!!'},502),
+                        ({'planet':''},502),({'planet':None},502),
+                        ({'planet':base64.b64encode(b'x'*(1024*1024+1)).decode()},502)]:
+   with self.subTest(status=status,keys=list(result)):
+    remote.return_value=result
+    self.assertEqual(client.get('/api/zerotier/planet').status_code,status)
+
+ def test_remote_download_does_not_read_token_or_controller_api(self):
+  result={'planet':base64.b64encode(b'planet').decode()}
+  output=io.StringIO()
+  with patch('sys.argv',['remote',json.dumps({'mode':'planet'})]), \
+       patch('subprocess.check_output',return_value=json.dumps(result).encode()) as read, \
+       patch('subprocess.run') as run,redirect_stdout(output):
+   with self.assertRaises(SystemExit) as stopped:
+    exec(REMOTE,{})
+  self.assertEqual(stopped.exception.code,0)
+  self.assertEqual(json.loads(output.getvalue()),result)
+  command=read.call_args.args[0]
+  self.assertEqual(command[:5],['docker','exec','ztncui','python3','-c'])
+  self.assertIn("/var/lib/zerotier-one/planet",command[5])
+  self.assertIn('f.read(1024*1024+1)',command[5])
+  run.assert_not_called()

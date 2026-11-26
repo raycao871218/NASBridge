@@ -12,4 +12,11 @@ assert.match(panel.innerHTML,/最近执行：interrupted/);assert.ok(!panel.inne
 run.status='unknown';vm.runInContext('renderDailyTaskProgress({status:"ok",runs:[run]})',ctx);assert.ok(!panel.innerHTML.includes('>running<'));
 vm.runInContext('renderDailyTaskProgress({status:"error",runs:[]})',ctx);assert.equal(panel.hidden,true);
 assert.match(vm.runInContext('dailyTaskProgressHtml({})',ctx),/旧版记录/);
+ctx.skillRun={status:'success',skill_updated:false,skill_update:{observations_status:'updated',framework_status:'unchanged',reason:'<script>新增证据支持已有方法</script>'}};
+let skillCells=vm.runInContext('dailyTaskSkillCells(skillRun)',ctx);
+assert.match(skillCells,/<td>已更新<\/td><td>未变化<\/td>/);
+assert.match(skillCells,/&lt;script&gt;/);assert.ok(!skillCells.includes('<script>'));
+assert.match(vm.runInContext('dailyTaskSkillCells({status:"success",skill_updated:false})',ctx),/<td>未记录<\/td><td>未记录<\/td>/);
+assert.match(vm.runInContext('dailyTaskSkillCells({status:"success",skill_updated:true})',ctx),/<td>未记录<\/td><td>已更新<\/td>/);
+assert.match(vm.runInContext('dailyTaskSkillCells({status:"running"})',ctx),/待确认/);
 console.log('PASS: current/completed/pending stages, safe text, interrupted/unknown never shows running, errors and legacy records');

@@ -1,4 +1,13 @@
 const expandedRunProgress=new Set();
+function dailyTaskSkillCells(run){
+  const update=run.skill_update||run.progress?.skill_update;
+  const labels={updated:'已更新',unchanged:'未变化',unrecorded:'未记录'};
+  const pending=['running','unknown','unresponsive'].includes(run.status);
+  const observation=update?labels[update.observations_status]||'未记录':pending?'待确认':'未记录';
+  const framework=update?labels[update.framework_status]||'未记录':run.skill_updated===true?'已更新':pending?'待确认':'未记录';
+  const reason=update?.reason||(pending?'任务尚未完成': '旧版任务未分别记录观察日志和主框架的更新原因');
+  return '<td>'+esc(observation)+'</td><td>'+esc(framework)+'</td><td><details><summary>查看原因</summary><p class="muted small">'+esc(reason)+'</p></details></td>';
+}
 function dailyTaskProgressHtml(run){
   const progress=run.progress;
   if(!progress||!Array.isArray(progress.stages))return '<p class="muted small">旧版记录没有逐阶段进度；新执行的任务将显示完整阶段。</p>';

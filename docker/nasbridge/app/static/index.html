@@ -3,12 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NASBridge</title>
+  <title>鸟巢 · 我的 NAS 小窝</title>
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <script src="/static/date-format.js?v=20261015"></script>
   <link rel="stylesheet" href="/static/videos.css?v=20261015-dates">
+  <link rel="stylesheet" href="/static/home.css?v=20261021-identity">
+  <link rel="stylesheet" href="/static/wechat.css?v=20261103-article-list">
     <style>
-    :root { color-scheme:dark; --bg:#0b1020; --surface:#111a2b; --surface-2:#172238; --surface-3:#0d1627; --line:#273650; --line-soft:#202d43; --text:#e9eff8; --muted:#9baac0; --green:#65d8b4; --yellow:#f2c66d; --red:#ff8798; --blue:#8eb5ff; --accent:#8eb5ff; --shadow:0 18px 44px rgba(0,0,0,.18); }
+    :root { color-scheme:dark; --bg:#fcf6e8; --surface:#fffcf4; --surface-2:#eee9df; --surface-3:#f4efe5; --line:#aaa0a6; --line-soft:#d8cec3; --text:#3b3a49; --muted:#706b75; --green:#52745f; --yellow:#916524; --red:#a34d46; --blue:#4d669d; --accent:#4d669d; --shadow:0 18px 44px rgba(0,0,0,.18); }
     * { box-sizing:border-box; }
     html { min-width:320px; background:var(--bg); }
     body { margin:0; min-height:100vh; color:var(--text); background:radial-gradient(ellipse at 84% -10%,rgba(92,126,204,.15),transparent 34%),var(--bg); font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
@@ -19,8 +21,8 @@
     h3 { margin:0 0 14px; font-size:14px; font-weight:650; }
     p { margin:0; }
     button,input,select,textarea { font:inherit; }
-    button,.file-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 13px; border:1px solid #3a4b67; border-radius:9px; color:var(--text); background:#1b2940; font-size:12px; font-weight:600; line-height:18px; white-space:nowrap; cursor:pointer; flex-shrink:0; transition:background .16s,border-color .16s,transform .16s; }
-    button:hover,.file-button:hover { background:#263956; border-color:#6a87b4; transform:translateY(-1px); }
+    button,.file-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 13px; border:1px solid #8a8a9a; border-radius:9px; color:var(--text); background:#fffcf4; font-size:12px; font-weight:600; line-height:18px; white-space:nowrap; cursor:pointer; flex-shrink:0; transition:background .16s,border-color .16s,transform .16s; }
+    button:hover,.file-button:hover { background:#eee9df; border-color:#6a87b4; transform:translateY(-1px); }
     button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     button.primary { color:#0b1730; background:#9bbcff; border-color:#9bbcff; font-weight:700; }
     button.primary:hover { background:#b6ceff; border-color:#b6ceff; }
@@ -29,21 +31,22 @@
     button:disabled { opacity:.55; cursor:wait; transform:none; }
     input:not([type=checkbox]):not([type=file]),select { min-height:42px; width:100%; min-width:0; padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:var(--surface-3); color:var(--text); }
     input[type=checkbox] { width:17px; height:17px; margin:0; accent-color:var(--blue); flex-shrink:0; }
-    input::placeholder,textarea::placeholder { color:#71839e; }
-    label.field { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; color:#bfcbdb; font-size:12px; font-weight:550; }
+    input::placeholder,textarea::placeholder { color:#79717b; }
+    label.field { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; color:#514d58; font-size:12px; font-weight:550; }
     label.check { display:inline-flex; align-items:center; gap:9px; min-height:40px; font-size:12px; color:var(--text); }
-    .eyebrow { width:max-content; margin-bottom:4px; padding:2px 8px; border:1px solid #31415b; border-radius:999px; color:#aec6f5; background:#18253a; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
+    .eyebrow { width:max-content; margin-bottom:4px; padding:2px 8px; border:1px solid #31415b; border-radius:999px; color:#4d669d; background:#eee9df; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
     .header-note { margin-top:4px; color:var(--muted); font-size:12px; }
     .topbar-actions { display:flex; align-items:center; gap:10px; }
     .view-tabs { grid-column:1; grid-row:1 / span 2; position:sticky; top:22px; z-index:5; display:flex; flex-direction:column; gap:5px; width:100%; margin:0; padding:12px; overflow:visible; border:1px solid var(--line-soft); border-radius:16px; background:rgba(17,26,43,.88); box-shadow:var(--shadow); backdrop-filter:blur(16px); }
-    .view-tabs::before { content:"面板导航"; padding:4px 9px 9px; color:#71819a; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
-    .view-tab { display:flex; align-items:center; justify-content:flex-start; gap:11px; min-height:43px; width:100%; margin:0; padding:9px 11px; border:1px solid transparent; border-radius:10px; color:#a6b4c9; background:transparent; font-size:12px; font-weight:600; text-align:left; }
+    .view-tabs::before { content:"面板导航"; padding:4px 9px 9px; color:#706b75; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    .view-tab { display:flex; align-items:center; justify-content:flex-start; gap:11px; min-height:43px; width:100%; margin:0; padding:9px 11px; border:1px solid transparent; border-radius:10px; color:#706b75; background:transparent; font-size:12px; font-weight:600; text-align:left; }
     .view-tab::before { content:""; width:7px; height:7px; flex:none; border-radius:50%; background:currentColor; opacity:.55; }
-    .view-tab:hover { color:var(--text); background:#18253a; transform:none; }
-    .view-tab.active { color:#d9e6ff; border-color:#344968; background:linear-gradient(100deg,rgba(110,151,225,.2),rgba(110,151,225,.06)); box-shadow:inset 2px 0 #8eb5ff; }
+    .view-tab:hover { color:var(--text); background:#eee9df; transform:none; }
+    .view-tab.active { color:#3b3a49; border-color:#344968; background:linear-gradient(100deg,rgba(110,151,225,.2),rgba(110,151,225,.06)); box-shadow:inset 2px 0 #4d669d; }
     .view-tab.active::before { background:#91b7ff; box-shadow:0 0 10px rgba(142,181,255,.7); opacity:1; }
     .view { display:none; grid-column:2; min-width:0; }
     .view.active { display:block; }
+    #wechatView [hidden] { display:none !important; }
     .section-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:2px 0 18px; }
     .section-heading h2 { font-size:22px; line-height:1.3; letter-spacing:-.4px; }
     .section-heading p { margin-top:5px; color:var(--muted); font-size:12px; }
@@ -65,7 +68,7 @@
     #connections { max-height:440px; }
     table { width:100%; border-collapse:collapse; min-width:700px; font-size:12px; }
     th,td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
-    th { position:sticky; top:0; z-index:1; color:#aab8cc; font-size:10px; font-weight:700; letter-spacing:.02em; background:#17243a; white-space:nowrap; }
+    th { position:sticky; top:0; z-index:1; color:#706b75; font-size:10px; font-weight:700; letter-spacing:.02em; background:#eee9df; white-space:nowrap; }
     td { overflow-wrap:anywhere; } tr:last-child td { border-bottom:0; }
     tbody tr:hover td,tr:hover td { background:rgba(137,181,255,.035); }
     td button { min-height:31px; padding:5px 10px; font-size:11px; }
@@ -76,7 +79,7 @@
     .proxy-card-main { min-width:0; flex:1; }
     .proxy-card-title,.proxy-card-route { display:flex; align-items:center; flex-wrap:wrap; gap:7px; min-width:0; }
     .proxy-card-title strong { font-size:12px; }
-    .proxy-card-route { margin-top:7px; color:#c4d0df; font-size:11px; }
+    .proxy-card-route { margin-top:7px; color:#514d58; font-size:11px; }
     .proxy-card-route > span:first-child,.proxy-card-route code { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .proxy-card-route code { color:#a9c8fb; }
     .proxy-badge { padding:2px 8px; border:1px solid #324663; border-radius:999px; background:#1c2c45; color:#b5cefa; font-size:9px; }
@@ -98,11 +101,11 @@
     .file-button { position:relative; overflow:hidden; }
     .file-button input { position:absolute; inset:0; opacity:0; width:100%; cursor:pointer; }
     .file-button:focus-within { outline:2px solid var(--blue); outline-offset:3px; }
-    textarea { display:block; width:100%; min-height:360px; margin-top:16px; padding:15px; resize:vertical; color:#c8d7eb; background:var(--surface-3); border:1px solid var(--line); border-radius:10px; font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
+    textarea { display:block; width:100%; min-height:360px; margin-top:16px; padding:15px; resize:vertical; color:#514d58; background:var(--surface-3); border:1px solid var(--line); border-radius:10px; font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
     .form-section { margin-top:21px; padding-top:21px; border-top:1px solid var(--line-soft); }
     .label,.muted { color:var(--muted); } .small { font-size:11px; }
     .ok { color:var(--green); } .warning { color:var(--yellow); } .critical,.expired,.error { color:var(--red); } .proxy { color:var(--blue); }
-    code { color:#bad0f4; font-size:11px; } .error { white-space:pre-wrap; overflow-wrap:anywhere; }
+    code { color:#4d669d; font-size:11px; } .error { white-space:pre-wrap; overflow-wrap:anywhere; }
     #footer { grid-column:2; padding:1px 2px; color:var(--muted); font-size:11px; }
     dialog { width:min(480px,calc(100% - 32px)); max-height:calc(100vh - 40px); overflow:auto; padding:22px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 80px #0008; }
     dialog::backdrop { background:rgba(4,10,20,.72); backdrop-filter:blur(4px); }
@@ -137,7 +140,7 @@
       .view-tabs::before { display:none; }
       .view-tab { width:auto; min-width:max-content; min-height:38px; padding:7px 10px; font-size:11px; }
       .view-tab::before { width:6px; height:6px; }
-      .view-tab.active { box-shadow:inset 0 -2px #8eb5ff; }
+      .view-tab.active { box-shadow:inset 0 -2px #4d669d; }
       .view { grid-column:1; grid-row:3; }
       #footer { grid-column:1; grid-row:4; }
       .section-heading { margin-bottom:14px; }
@@ -189,23 +192,73 @@
     @media(max-width:1100px) { .geofence-layout { grid-template-columns:1fr; } .geofence-rules { grid-template-columns:1fr 1fr; } }
     @media(max-width:430px) { .geofence-fields { grid-template-columns:1fr; } }
   </style>
+  <link rel="icon" href="/static/nest.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/crayon.css?v=20261019">
+<link rel="stylesheet" href="/static/proxy-groups.css?v=20261102-layout">
+<link rel="stylesheet" href="/static/codex-accounts.css?v=4">
 </head>
 <body>
 <main>
   <header>
-    <div><div class="eyebrow">NAS 管理面板</div><h1>NASBridge</h1><div class="muted header-note">代理连接与 HTTPS 服务管理</div></div>
+    <div class="nest-brand"><img src="/static/nest.svg" alt="" width="82" height="82"><div><div class="eyebrow">我的 NAS 小窝</div><h1>鸟巢</h1><div class="muted header-note">让服务各就各位，让日常轻轻松松。</div></div></div>
     <div class="topbar-actions"><button onclick="load()">刷新数据</button></div>
   </header>
   <nav class="view-tabs" role="tablist" aria-label="功能模块">
-    <button class="view-tab active" role="tab" aria-selected="true" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
+    <button class="view-tab active" role="tab" aria-selected="true" data-view-target="homeView" onclick="switchView('homeView',this)">首页</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="mihomoView" onclick="switchView('mihomoView',this)">Mihomo 代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="rhinoView" onclick="switchView('rhinoView',this)">每日任务</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="videosView" onclick="switchView('videosView',this)">视频</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="wechatView" onclick="switchView('wechatView',this)">公众号文章</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="opsView" onclick="switchView('opsView',this)">证书与反向代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="aliyunView" onclick="switchView('aliyunView',this)">阿里云安全组</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="devicesView" onclick="switchView('devicesView',this)">设备管理</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="codexAccountsView" onclick="switchView('codexAccountsView',this)">Codex 账号</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="smsView" onclick="switchView('smsView',this)">短信</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="geofenceView" onclick="switchView('geofenceView',this)">地理围栏</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="androidSetupView" onclick="switchView('androidSetupView',this)">App 扫码配置</button>
   </nav>
+
+  <section id="homeView" class="view active" aria-label="首页">
+    <div class="section-heading home-intro"><div><h2>常用网站</h2><p>把常去的地方，安放在鸟巢。点击卡片，在新标签页打开。</p></div></div>
+    <div class="section-actions"><span class="muted small">6 个专属位置 · 配置保存在 NAS</span><button id="homeReload" type="button">重新加载</button></div>
+    <p id="homeStatus" class="status-line" role="status"></p>
+    <div id="homeSites" class="home-sites"></div>
+  </section>
+
+  <section id="androidSetupView" class="view">
+    <div class="section-heading"><div><h2>App 扫码配置</h2><p>填写一次，生成二维码，手机确认导入后即可使用。</p></div></div>
+    <section class="panel">
+      <form id="androidSetupForm" autocomplete="off">
+        <div class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))">
+          <label class="field">家庭 Wi-Fi 名称（可留空）<input id="setupSsid" maxlength="128" placeholder="留空，手机扫码时自动读取"></label>
+          <label class="field">外网 NAS 地址（含端口）<input id="setupPublic" type="text" inputmode="url" required maxlength="512" placeholder="nas.example.com:18099"></label>
+        </div>
+        <fieldset style="margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:10px">
+          <legend>内网 NAS 地址（从上到下优先，最多 8 个）</legend>
+          <div id="setupLocalList"></div>
+          <button id="setupAddLocal" type="button" style="margin-top:10px">添加内网地址</button>
+          <p class="small muted" style="margin-top:8px">每项可填写独立端口。新版 App 在 Wi-Fi、移动网络或 VPN 下按顺序检测，第一个可达即使用；全部不可达时使用外网地址。旧版 App 仅使用第一项。</p>
+        </fieldset>
+        <label class="check" style="margin-top:16px"><input id="setupPresence" type="checkbox" checked>包含 HA 在家状态同步配置</label>
+        <div id="setupPresenceFields" class="proxy-form" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));margin-top:12px">
+          <label class="field">HA 地址（HTTPS，含端口）<input id="setupHaUrl" type="text" inputmode="url" maxlength="512" placeholder="ha.example.com:8123"></label>
+          <label class="field">HA 实体<input id="setupEntity" maxlength="160" value="input_boolean.home" placeholder="input_boolean.home"></label>
+          <label class="field">HA 长期访问令牌<input id="setupToken" type="password" maxlength="1024" autocomplete="new-password" spellcheck="false"></label>
+          <label class="check"><input id="setupTest" type="checkbox">测试模式：每 1 分钟定位（关闭为 30 分钟）</label>
+        </div>
+        <p class="small muted">地址可省略 http:// 或 https://：内网默认 HTTP，外网和 HA 默认 HTTPS；已填写的协议会保留。</p>
+        <label class="check" style="margin-top:12px"><input id="setupFence" type="checkbox" checked>带上 NAS 当前已保存的地理围栏</label>
+        <p class="small muted">二维码可能包含 HA 令牌，请仅给自己的手机扫码并妥善保管下载文件。点击“保存配置”后，配置与令牌加密保存到 NAS，刷新后自动加载；令牌输入框留空会保留已保存值。页面二维码 5 分钟后自动隐藏，下载文件仍可导入。Wi-Fi 名称留空时，由 Android 0.16.1+ 在扫码时读取手机当前连接的 Wi-Fi，确认后保存；请在家里连接 Wi-Fi 再扫码。手机权限需单独授权，导入后可在 App 启用在家同步。</p>
+        <div class="action-row"><button id="setupLoad" type="button">读取后台配置</button><button id="setupSave" type="button">保存配置</button><button id="setupGenerate" class="primary" type="submit">生成配置二维码</button></div>
+      </form>
+      <p id="setupStatus" class="status-line" role="status"></p>
+      <div id="setupQrPanel" hidden>
+        <img id="setupQr" alt="麻雀会 App 配置二维码" style="display:block;width:min(100%,480px);height:auto;background:white;margin:20px 0" />
+        <div class="toolbar"><a id="setupDownload" class="file-button" download="NASBridge-configuration.svg">下载二维码</a><button id="setupHide" type="button">隐藏并清空令牌</button></div>
+      </div>
+    </section>
+  </section>
 
   <section id="videosView" class="view">
     <div class="section-heading"><div><h2>视频</h2><p>浏览犀牛哥视频，选择封面即可播放。</p></div><button id="videosRefresh" type="button">刷新</button></div>
@@ -214,7 +267,7 @@
       <video id="videoPlayer" controls playsinline preload="metadata" aria-label="视频播放器"></video>
       <div class="toolbar video-controls">
         <button id="videoBack" type="button">后退 10 秒</button><button id="videoForward" type="button">前进 10 秒</button>
-        <label for="videoSpeed">播放速度</label><select id="videoSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+        <label for="videoSpeed">播放速度</label><select id="videoSpeed"><option value="0.5">0.5×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5" selected>1.5×</option><option value="2">2×</option></select>
       </div>
       <p id="videoPlaybackStatus" class="status-line" role="status"></p>
     </section>
@@ -223,6 +276,44 @@
       <p id="videosStatus" class="status-line" role="status">进入后加载视频</p>
       <div id="videoItems"></div>
     </section>
+  </section>
+  <section id="wechatView" class="view">
+    <div class="section-heading"><div><h2>公众号文章</h2><p>粘贴微信文章链接，抓取正文并导出。</p></div><button id="wechatHealth" type="button">检查服务</button></div>
+    <div class="toolbar" role="tablist" aria-label="公众号文章" style="margin-bottom:16px">
+      <button id="wechatFetchTab" type="button" role="tab" aria-selected="true" aria-controls="wechatFetchPanel" class="primary">抓取文章</button>
+      <button id="wechatHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="wechatHistoryPanel" tabindex="-1">历史记录</button>
+    </div>
+    <div id="wechatFetchPanel" role="tabpanel" aria-labelledby="wechatFetchTab">
+    <section class="panel">
+      <form id="wechatForm">
+        <label class="field">文章链接（每行一个，最多 100 个）<textarea id="wechatUrl" required maxlength="819200" rows="4" style="min-height:110px;margin-top:0" placeholder="https://mp.weixin.qq.com/s/…&#10;https://mp.weixin.qq.com/s/…"></textarea></label>
+        <div class="action-row"><label class="check"><input id="wechatImages" type="checkbox" checked>保留正文图片链接</label><button id="wechatStop" type="button" hidden>停止后续抓取</button><button id="wechatRead" class="primary" type="submit">开始抓取</button></div>
+      </form>
+      <p id="wechatStatus" class="status-line" role="status" aria-live="polite">支持一次提交多个链接，逐篇抓取，单篇最长等待 60 秒。</p>
+      <p class="small muted">成功结果自动保存到历史记录。多篇之间间隔 10 秒；遇到微信验证会停止整个批次。请保持页面打开，图片仅保留链接。</p>
+      <div id="wechatBatchItems" aria-label="本次抓取结果"></div>
+    </section>
+    <section id="wechatResult" class="panel" hidden>
+      <h2 id="wechatTitle"></h2><p id="wechatMeta" class="muted"></p>
+      <div class="action-row"><button id="wechatCopy" type="button">复制 Markdown</button><button id="wechatMarkdown" type="button">下载 Markdown</button><button id="wechatJson" type="button">下载 JSON</button><a id="wechatOriginal" target="_blank" rel="noopener noreferrer">打开原文</a></div>
+      <p id="wechatWarning" class="status-line warning"></p>
+      <div id="wechatBody" style="margin-top:20px"></div>
+      <details style="margin-top:20px"><summary>Markdown 原文</summary><pre id="wechatRaw" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
+    </section>
+    </div>
+    <div id="wechatHistoryPanel" role="tabpanel" aria-labelledby="wechatHistoryTab" hidden>
+    <section class="panel">
+      <div class="panel-header"><h3>抓取历史</h3><button id="wechatHistoryRefresh" type="button">刷新列表</button></div>
+      <form id="wechatSearchForm" class="toolbar"><label class="field" style="flex:1">搜索历史<input id="wechatSearch" type="search" maxlength="200" placeholder="标题、公众号、作者或链接"></label><button type="submit">搜索</button></form>
+      <div class="wechat-list-toolbar"><label class="check"><input id="wechatSelectPage" type="checkbox">全选本页</label><div class="wechat-list-actions"><button id="wechatExportSelected" type="button" disabled>下载选中（0）</button><button id="wechatExportAll" type="button" disabled>打包下载全部</button></div></div>
+      <p id="wechatHistoryStatus" class="status-line" role="status" aria-live="polite">进入后加载历史</p>
+      <p id="wechatExportStatus" class="status-line" role="status"></p>
+      <div id="wechatListHeading" class="wechat-list-heading" aria-hidden="true" hidden><span>文章 / 公众号</span><span>发布时间</span><span>最近抓取</span></div>
+      <div id="wechatHistoryItems" aria-label="历史文章列表"></div>
+      <p id="wechatHistoryEmpty" class="wechat-list-empty" hidden></p>
+      <div class="action-row"><button id="wechatHistoryPrev" type="button" disabled>上一页</button><span id="wechatHistoryPage" class="muted"></span><button id="wechatHistoryNext" type="button" disabled>下一页</button></div>
+    </section>
+    </div>
   </section>
   <section id="geofenceView" class="view">
     <div class="section-heading"><div><h2>地理围栏</h2><p>在地图上选一个点，设定你希望覆盖的半径。</p></div><button id="geoReload" type="button">重新读取</button></div>
@@ -273,7 +364,7 @@
         <div><span class="label">范围内 / 定位失败</span><p>保留状态，继续下次检测</p></div>
         <div><span class="label">外网持续到超时</span><p>按最长检测时长判定离家</p></div>
       </div>
-      <p class="small muted" style="margin-top:16px">本页管理配置，由 NASBridge Android 0.15.0 及以上版本读取并执行检测，HA 由手机直接上报。手机每 5 分钟自动同步，也可在手机设置页手动同步；保存本页不会立即改变 HA 状态。</p>
+      <p class="small muted" style="margin-top:16px">本页管理配置，由 麻雀会 Android 0.15.0 及以上版本读取并执行检测，HA 由手机直接上报。手机每 5 分钟自动同步，也可在手机设置页手动同步；保存本页不会立即改变 HA 状态。</p>
     </section>
   </section>
 
@@ -281,13 +372,21 @@
     <div class="section-heading"><div><h2>短信</h2><p>查看手机转存的短信，按发送时间从新到旧排列。</p></div><button id="smsRefresh">刷新</button></div>
     <section class="panel">
       <form id="smsSearchForm" class="toolbar"><input id="smsQuery" aria-label="搜索发送人或短信内容" placeholder="搜索发送人或短信内容" maxlength="100"><button type="submit">搜索</button><button type="button" id="smsReset">清空</button></form>
+      <p class="muted small">展开全文或复制验证码后标为已读，记录保存在当前浏览器。发送时间在 3 分钟内的短信以橙色突出显示。</p>
       <p id="smsStatus" class="status-line" role="status">进入后加载短信</p>
       <div id="smsItems" style="overflow-wrap:anywhere"></div>
       <div class="section-actions"><button id="smsPrev">上一页</button><span id="smsPage" class="muted small"></span><button id="smsNext">下一页</button></div>
     </section>
   </section>
-  <section id="mihomoView" class="view active">
+  <section id="mihomoView" class="view">
     <div class="section-heading"><div><h2>Mihomo 代理</h2><p>查看代理是否在线、哪些应用正在使用代理，以及实时连接和流量。</p></div></div>
+    <div class="mihomo-tabs" role="tablist" aria-label="Mihomo 功能">
+      <button id="mihomoStatusTab" role="tab" aria-selected="true" aria-controls="mihomoStatusPanel" data-mihomo-panel="mihomoStatusPanel">运行状态</button>
+      <button id="mihomoNodesTab" role="tab" aria-selected="false" aria-controls="mihomoNodesPanel" data-mihomo-panel="mihomoNodesPanel" tabindex="-1">代理节点</button>
+      <button id="mihomoConfigTab" role="tab" aria-selected="false" aria-controls="mihomoConfigPanel" data-mihomo-panel="mihomoConfigPanel" tabindex="-1">配置</button>
+    </div>
+    <div id="mihomoStatusPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoStatusTab">
+    <div class="mihomo-summary">
     <section class="panel">
       <div class="panel-header">
         <div><h2>Mihomo Docker 服务</h2><p class="muted small">容器状态与快捷操作</p></div>
@@ -302,12 +401,32 @@
       <p id="mihomoActionStatus" class="status-line" role="status" aria-live="polite"></p>
     </section>
     <section class="grid" id="metrics"></section>
-    <section class="panel">
-      <div class="panel-header"><div><h2>应用代理状态</h2><p class="muted small">按当前 Mihomo 活动连接自动识别应用；配置应用始终显示，已停止活动的发现项会自动隐藏。</p></div><div class="section-actions"><button onclick="scanApplications()">扫描并保存识别信息</button></div></div>
-      <p id="appScanStatus" class="status-line" role="status"></p><div id="apps" class="table-scroll">加载中…</div>
+    </div>
+    <div id="mihomoConnectionsPanel" class="mihomo-connections">
+    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源地址、目标地址、路由结果和流量。</p></div></div><div class="action-row"><label>来源筛选 <select id="sourceFilter" onchange="renderSourceConnections()"><option value="">全部来源</option></select></label><span id="sourceTraffic" class="muted small" role="status"></span></div>
+      <p class="muted small">统计当前活动连接的累计流量，连接结束后不再计入。</p>
+      <div id="connections" class="table-scroll">加载中…</div>
+      <details ontoggle="if(this.open) loadSourceAliases()"><summary>管理来源别名</summary>
+        <p class="muted small">端口留空匹配整个 IP；IP + 端口规则优先。来源端口可能随连接变化。</p>
+        <form onsubmit="saveSourceAlias(event)" class="action-row">
+          <label>IP <input id="sourceAliasIp" required placeholder="192.168.1.20 或 ::1"></label>
+          <label>来源端口 <input id="sourceAliasPort" type="number" min="1" max="65535" placeholder="留空：全部端口"></label>
+          <label>别名 <input id="sourceAliasName" required maxlength="80" placeholder="我的手机"></label>
+          <button type="submit">保存别名</button>
+        </form><p id="sourceAliasStatus" role="status"></p><div id="sourceAliasRules"></div>
+      </details></section>
+    </div>
+    </div>
+    <div id="mihomoNodesPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoNodesTab" hidden>
+    <section class="panel" aria-label="代理节点管理">
+      <div class="panel-header"><div><h2>代理节点</h2><p class="muted small">选择代理组的出口节点；自动组可固定节点或恢复自动选择。</p></div><button id="proxyGroupsRefresh" type="button">刷新节点</button></div>
+      <p id="proxyGroupsStatus" class="status-line" role="status" aria-live="polite"></p>
+      <div id="proxyGroups">进入此页后读取代理组…</div>
+      <p class="muted small">切换影响新连接，已有连接不会强制断开。延迟为最近测速结果，点击节点旁的“测速”更新。</p>
     </section>
-    <section class="panel"><div class="panel-header"><div><h2>当前连接</h2><p class="muted small">实时显示来源应用、目标地址、路由结果和流量。</p></div></div><div id="connections" class="table-scroll">加载中…</div></section>
-    <details class="panel">
+    </div>
+    <div id="mihomoConfigPanel" class="mihomo-panel" role="tabpanel" aria-labelledby="mihomoConfigTab" hidden>
+    <details class="panel" open>
       <summary><span>Mihomo 配置<small>编辑代理节点、分流规则和配置文件</small></span></summary>
       <div class="editor-body">
         <div class="toolbar">
@@ -318,6 +437,7 @@
         <div class="action-row"><span id="mihomoConfigStatus" class="status-line" role="status"></span><button class="primary" onclick="applyMihomoConfig()">校验并应用</button></div>
       </div>
     </details>
+    </div>
   </section>
 
   <section id="opsView" class="view">
@@ -374,9 +494,18 @@
   <section id="rhinoView" class="view">
     <div class="section-heading"><div><h2>每日任务</h2><p>查看每日运行结果、媒体处理步骤和已生成的视频概要。</p></div></div>
     <section class="grid" id="dailyTaskMetrics"><div class="panel muted">加载中…</div></section>
-    <section id="dailyTaskManual" class="panel" hidden>
-      <div class="panel-header"><div><h2>手动执行每日任务</h2><p id="dailyTaskManualHint" class="muted small"></p></div><button id="dailyTaskRun" type="button" class="primary" disabled>手动执行</button></div>
+    <section id="dailyTaskManual" class="panel">
+      <div class="panel-header"><div><h2>手动执行每日任务</h2><p id="dailyTaskManualHint" class="muted small">正在确认任务状态…</p></div><button id="dailyTaskRun" type="button" class="primary" disabled>手动执行</button></div>
+      <label for="dailyTaskDateInput">视频日期</label>
+      <input id="dailyTaskDateInput" type="date" required disabled aria-describedby="dailyTaskDayStatus">
+      <p id="dailyTaskDayStatus" class="status-line" role="status"></p>
       <p id="dailyTaskRunStatus" class="status-line" role="status" aria-live="polite"></p>
+    </section>
+    <section id="dailyTaskRetry" class="panel" aria-live="polite">
+      <h2 id="dailyTaskRetryTitle">正在读取自动重试状态…</h2>
+      <p id="dailyTaskRetryDetail" class="muted small"></p>
+      <p id="dailyTaskRetryTime" class="muted small"></p>
+      <p id="dailyTaskShutdownGuard" class="status-line"></p>
     </section>
     <section class="panel" id="dailyTaskProgressPanel" hidden aria-live="polite"></section>
     <section class="panel" id="latestUnreadSummary" hidden></section>
@@ -422,7 +551,7 @@
     <section class="panel">
       <div class="panel-header"><h2>网络与成员</h2><button onclick="loadZTNetworks(true)">重新读取网络和成员</button></div>
       <label class="field">网络<select id="ztNetwork" onchange="clearZTMembers();loadZTMembers()"><option value="">请先读取网络</option></select></label>
-      <div class="action-row"><button onclick="loadZTMembers()">读取成员</button><a href="/api/zerotier/admin" target="_blank" rel="noopener">打开原管理界面</a></div>
+      <div class="action-row"><button onclick="loadZTMembers()">读取成员</button><button onclick="downloadZTPlanet()">下载 planet</button><a href="/api/zerotier/admin" target="_blank" rel="noopener">打开原管理界面</a></div>
       <p id="ztStatus" class="status-line" role="status" aria-live="polite">使用服务器现有控制器，点击连接开始。</p>
       <pre id="ztConfig" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
       <div id="ztMembers" class="table-scroll">请选择网络并读取成员</div>
@@ -438,11 +567,44 @@
       <div class="action-row"><label class="check"><input id="ztMemberAuth" type="checkbox">授权此成员</label><button onclick="document.getElementById('ztEditor').hidden=true">取消</button><button class="primary" onclick="saveZTMember()">保存成员变更</button></div>
     </section>
   </section>
+  <section id="codexAccountsView" class="view">
+    <div class="section-heading codex-heading">
+      <div><h2>Codex 账号</h2><p>Ubuntu 开发服务器</p></div>
+      <button id="codexRefresh" type="button">刷新账号</button>
+    </div>
+    <div id="codexCards" class="codex-cards"></div>
+    <p id="codexFeedback" class="status-line" role="status" aria-live="polite" hidden></p>
+    <dialog id="codexConfirm" aria-labelledby="codexConfirmTitle" aria-describedby="codexConfirmEmail codexConfirmHint">
+      <h2 id="codexConfirmTitle">切换 Codex 账号？</h2>
+      <p id="codexConfirmEmail" class="codex-card-email"></p>
+      <p id="codexConfirmHint" class="muted">切换后请重新启动 Codex。</p>
+      <form method="dialog" class="action-row">
+        <button value="cancel" autofocus>取消</button>
+        <button value="switch" class="primary">确认切换</button>
+      </form>
+    </dialog>
+  </section>
+  <section id="devicesView" class="view">
+    <div class="section-heading codex-heading"><h2>设备管理</h2><button id="devPowerRefresh" type="button">刷新状态</button></div>
+    <section class="panel">
+      <div class="panel-header"><h2>Ubuntu 开发机</h2><button id="devPowerButton" class="danger" type="button" disabled>关机</button></div>
+      <p id="devPowerStatus" class="status-line" role="status">正在检查开发机状态…</p>
+    </section>
+    <dialog id="devPowerConfirm" aria-labelledby="devPowerTitle">
+      <h2 id="devPowerTitle">确认关闭开发机？</h2>
+      <p class="muted">请先保存工作。开发机正常关机并确认离线后，Home Assistant 会关闭智能插座。</p>
+      <form method="dialog" class="action-row">
+        <button value="cancel" autofocus>取消</button>
+        <button value="poweroff" class="danger">确认关机</button>
+      </form>
+    </dialog>
+  </section>
   <div id="footer" class="muted small"></div>
 </main>
 <dialog id="editProxyDialog" aria-labelledby="editProxyTitle">
   <h2 id="editProxyTitle">编辑反向代理</h2><p id="editProxyPort" class="muted small"></p><input id="editProxyId" type="hidden">
-  <label class="field">域名<input id="editProxyDomain" maxlength="253"></label>
+  <label class="field">服务名称<input id="editProxyName" maxlength="100" required></label>
+  <label class="field" style="margin-top:14px">域名<input id="editProxyDomain" maxlength="253"></label>
   <label class="field" style="margin-top:14px">目标服务器地址<input id="editProxyUpstream" placeholder="http://192.0.2.20:4195"></label>
   <p class="muted small" style="margin-top:10px">保存会保留现有监听端口、协议和证书，并备份当前配置。</p>
   <p id="editProxyStatus" class="status-line" role="status" aria-live="polite"></p>
@@ -457,8 +619,23 @@
     <button id="confirmDeleteProxy" class="danger" onclick="confirmDeleteReverseProxy()">确认删除</button>
   </div>
 </dialog>
-<script src="/static/daily-task-control.js?v=20261015"></script>
-<script src="/static/daily-task-progress.js?v=20261015"></script>
+<dialog id="homeSiteDialog" aria-labelledby="homeSiteTitle">
+  <h2 id="homeSiteTitle">添加常用网站</h2>
+  <form id="homeSiteForm">
+    <label class="field">网站地址<input id="homeSiteUrl" required maxlength="2048" inputmode="url" placeholder="粘贴网站地址，即可自动读取信息" autocomplete="off" spellcheck="false"></label>
+    <button id="homeSiteRead" type="button">读取网站信息</button>
+    <label class="field">卡片封面<select id="homeSiteCover"><option value="identity">网站标识（推荐）</option><option value="screenshot">网页截图</option></select></label>
+    <div id="homeSitePreview"></div>
+    <label class="field">网站标题（自动填写，可修改）<input id="homeSiteName" maxlength="40" placeholder="自动读取；留空时使用网站域名" autocomplete="off"></label>
+    <p class="muted small">默认使用网站标识，避免登录页或空白页占据封面。也可选择网页截图。支持内网地址，省略协议时默认使用 HTTPS。</p>
+    <p id="homeSiteError" class="error" role="status"></p>
+    <div class="action-row"><button id="homeSiteRemove" class="danger" type="button" hidden>移除网站</button><button id="homeSiteCancel" type="button">取消</button><button class="primary" type="submit">保存网站</button></div>
+  </form>
+</dialog>
+<script src="/static/home.js?v=20261021-identity"></script>
+<script src="/static/daily-task-control.js?v=20261106-backfill"></script>
+<script src="/static/daily-task-progress.js?v=20261103-skill-review"></script>
+<script src="/static/source-aliases.js?v=20261021"></script>
 <script>
 let scheduleLoaded=false, scheduleDirty=false;
 const expandedDailySummaries=new Set();
@@ -471,7 +648,8 @@ function switchView(id, button, autoLoad=true){
   if(id!=='videosView')document.getElementById('videoPlayer').pause();
   document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===target));
   document.querySelectorAll('.view-tab').forEach(tab=>{const active=tab===activeTab;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
-  if(autoLoad){if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
+  if(id==='rhinoView')void loadDailyTaskDay();
+  if(autoLoad){if(id==='mihomoView'&&typeof activateMihomoTab==='function')activateMihomoTab('mihomoStatusPanel');if(id==='geofenceView')void loadGeofence();if(id==='videosView')void loadVideos();if(id==='smsView')void loadSms(true);if(id==='aliyunView')void aliAutoLoadDefaults();if(id==='ztView')void loadZTNetworks();}
 }
 function markScheduleDirty(){ scheduleDirty=true; document.getElementById('scheduleStatus').textContent='有未保存的修改'; }
 function toggleCustomDays(){ const mode=document.getElementById('scheduleMode').value; document.getElementById('customDays').style.display=mode==='custom'?'flex':'none'; document.getElementById('monthDayField').hidden=mode!=='monthly'; }
@@ -497,8 +675,8 @@ function renderReverseProxies(items){
   reverseProxyItems=items;
   document.getElementById('reverseProxies').innerHTML=items.length?`<div class="proxy-list">${items.map((x,i)=>{const target=(x.proxy_pass||[]).join(', ')||'未配置';const domains=(x.server_name||[]).join(', ')||'未配置域名';return `<article class="proxy-card"><div class="proxy-card-main"><div class="proxy-card-title"><strong>${esc(x.service_name||'未命名服务')}</strong><span class="proxy-badge">${x.ssl?'HTTPS':'HTTP'}</span><span class="muted small">${esc(x.remote_port??(x.listen||[]).join(', '))}</span></div><div class="proxy-card-route"><span title="${esc(domains)}">${esc(domains)}</span><span class="route-arrow">→</span><code title="${esc(target)}">${esc(target)}</code></div></div><div class="proxy-card-actions"><button data-proxy-index="${i}" onclick="editReverseProxy(Number(this.dataset.proxyIndex))">编辑</button><button class="danger" data-proxy-id="${esc(x.id)}" onclick="deleteReverseProxy(this.dataset.proxyId)">删除</button></div></article>`}).join('')}</div>`:'未发现反向代理配置。';
 }
-function editReverseProxy(index){const item=reverseProxyItems[index];if(!item)return;document.getElementById('editProxyId').value=item.id;document.getElementById('editProxyDomain').value=(item.server_name||[]).join(' ');document.getElementById('editProxyUpstream').value=(item.proxy_pass||[]).join(' ');document.getElementById('editProxyPort').textContent=`监听端口 ${item.remote_port??(item.listen||[]).join(', ')} · ${item.ssl?'HTTPS':'HTTP'}`;document.getElementById('editProxyStatus').textContent='';document.getElementById('editProxyDialog').showModal();}
-async function saveReverseProxy(){const id=document.getElementById('editProxyId').value, domain=document.getElementById('editProxyDomain').value.trim(), upstream=document.getElementById('editProxyUpstream').value.trim(), status=document.getElementById('editProxyStatus'), button=document.getElementById('saveEditProxy');if(!domain||!upstream){status.textContent='请填写域名和后端地址';return;}button.disabled=true;button.textContent='保存中…';status.textContent='正在备份配置、校验并重载 Nginx…';try{const r=await fetch(`/api/reverse-proxies/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({server_name:domain,upstream:upstream.replaceAll('：',':')})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);if(data.verified!==true)throw new Error('服务端未确认变更已生效');document.getElementById('editProxyDialog').close();document.getElementById('reverseProxyStatus').textContent=`已更新：${domain} → ${data.upstream}`;await loadReverseProxies();}catch(e){status.textContent=`修改失败：${e.message||e}`;}finally{button.disabled=false;button.textContent='保存修改';}}
+function editReverseProxy(index){const item=reverseProxyItems[index];if(!item)return;document.getElementById('editProxyId').value=item.id;document.getElementById('editProxyName').value=item.service_name||'';document.getElementById('editProxyDomain').value=(item.server_name||[]).join(' ');document.getElementById('editProxyUpstream').value=(item.proxy_pass||[]).join(' ');document.getElementById('editProxyPort').textContent=`监听端口 ${item.remote_port??(item.listen||[]).join(', ')} · ${item.ssl?'HTTPS':'HTTP'}`;document.getElementById('editProxyStatus').textContent='';document.getElementById('editProxyDialog').showModal();}
+async function saveReverseProxy(){const name=document.getElementById('editProxyName').value.trim(), id=document.getElementById('editProxyId').value, domain=document.getElementById('editProxyDomain').value.trim(), upstream=document.getElementById('editProxyUpstream').value.trim(), status=document.getElementById('editProxyStatus'), button=document.getElementById('saveEditProxy');if(!name||!domain||!upstream){status.textContent='请填写服务名称、域名和后端地址';return;}button.disabled=true;button.textContent='保存中…';status.textContent='正在备份配置、校验并重载 Nginx…';try{const r=await fetch(`/api/reverse-proxies/${encodeURIComponent(id)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,server_name:domain,upstream:upstream.replaceAll('：',':')})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);if(data.verified!==true)throw new Error('服务端未确认变更已生效');document.getElementById('editProxyDialog').close();document.getElementById('reverseProxyStatus').textContent=`已更新：${domain} → ${data.upstream}`;await loadReverseProxies();}catch(e){status.textContent=`修改失败：${e.message||e}`;}finally{button.disabled=false;button.textContent='保存修改';}}
 function proxyDomainMatches(pattern,hostname){
   pattern=String(pattern||'').toLowerCase().replace(/\.$/,'');hostname=String(hostname||'').toLowerCase().replace(/\.$/,'');
   if(pattern.startsWith('*.')){const suffix=pattern.slice(1);return hostname.endsWith(suffix)&&(hostname.match(/\./g)||[]).length===(suffix.match(/\./g)||[]).length;}
@@ -507,19 +685,25 @@ function proxyDomainMatches(pattern,hostname){
 function renderProxyCertificateOptions(items){
   reverseProxyCertificates=items;const select=document.getElementById('proxyCertificate');const previous=select.value;
   const stateName={valid:'有效',expiring:'即将到期',expired:'已过期',unavailable:'不可用'};
-  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
+  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'&&!c.managed?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
   select.innerHTML='<option value="">按域名自动匹配</option>'+items.map(c=>`<option value="${esc(c.id)}" ${c.available?'':'disabled'}>${esc(c.name)}（${esc((c.domains||[]).join(', ')||'域名未识别')}；${esc(stateName[c.status]||c.status)}${c.expires_at?'；到期 '+esc(c.expires_at.slice(0,10)):''}；${esc(c.source||'')}</option>`).join('');
   if(items.some(c=>c.id===previous))select.value=previous;updateProxyCertificateHint();
+}
+let autoCertificateZones=[];
+function canAutoIssueProxyCertificate(domain){
+  const labels=domain.split('.');
+  return domain.length<=253&&labels.length>=2&&labels.every(label=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))&&autoCertificateZones.some(zone=>domain===zone||domain.endsWith('.'+zone));
 }
 function updateProxyCertificateHint(){
   const hint=document.getElementById('proxyCertificateHint');if(!hint)return;
   if(!document.getElementById('proxySsl').checked){hint.textContent='此入口使用 HTTP，不会配置证书。';return;}
-  const domain=document.getElementById('proxyServerName').value.trim().toLowerCase();const selected=document.getElementById('proxyCertificate').value;
+  const domain=document.getElementById('proxyServerName').value.trim().toLowerCase().replace(/\.+$/,'');const selected=document.getElementById('proxyCertificate').value;
   if(selected){const cert=reverseProxyCertificates.find(c=>c.id===selected);const matches=cert&&(cert.domains||[]).some(pattern=>proxyDomainMatches(pattern,domain));hint.textContent=matches?`将使用 ${cert.name}（${cert.expires_at?`到期 ${cert.expires_at.slice(0,10)}`:'有效期未知'}）。`:cert?`所选证书不覆盖 ${domain||'当前域名'}，创建时会被拒绝。`:'所选证书不可用。';return;}
   const matches=reverseProxyCertificates.filter(c=>c.available&&(c.domains||[]).some(pattern=>proxyDomainMatches(pattern,domain)));
+  if(!matches.length&&canAutoIssueProxyCertificate(domain)){hint.textContent=`暂无可用证书，创建时将自动为 ${domain} 申请并验证证书。`;return;}
   hint.textContent=!domain?'填写域名后自动匹配证书。':matches.length===1?`自动匹配：${matches[0].name}（${matches[0].domains.join(', ')}；到期 ${matches[0].expires_at?matches[0].expires_at.slice(0,10):'未知'}）`:matches.length>1?`有 ${matches.length} 张有效证书覆盖该域名，请手动选择。`:`没有可用证书覆盖 ${domain}；需检查证书、私钥匹配情况或关闭 HTTPS。`;
 }
-async function loadReverseProxies(){ const status=document.getElementById('reverseProxyStatus'); status.textContent='读取中…'; try { const r=await fetch('/api/reverse-proxies',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); renderProxyCertificateOptions(data.certificates||[]); renderReverseProxies(data.proxies||[]); status.textContent=`远端 ${data.remote_host||''}，共 ${(data.proxies||[]).length} 条`; } catch(e) { status.textContent=`读取失败：${e.message||e}`; document.getElementById('reverseProxies').innerHTML=''; } }
+async function loadReverseProxies(){ const status=document.getElementById('reverseProxyStatus'); status.textContent='读取中…'; try { const r=await fetch('/api/reverse-proxies',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); autoCertificateZones=(data.auto_certificate_zones||[]).map(zone=>zone.toLowerCase().replace(/\.+$/,'')); renderProxyCertificateOptions(data.certificates||[]); renderReverseProxies(data.proxies||[]); status.textContent=`远端 ${data.remote_host||''}，共 ${(data.proxies||[]).length} 条`; } catch(e) { status.textContent=`读取失败：${e.message||e}`; document.getElementById('reverseProxies').innerHTML=''; } }
 function deleteReverseProxy(id){
   if(proxyDeleteBusy) return;
   const item=reverseProxyItems.find(x=>x.id===id);
@@ -589,7 +773,9 @@ async function createReverseProxy(){
   if(!Number.isInteger(payload.port)||payload.port<1||payload.port>65535||!payload.upstream){status.textContent='请填写有效的监听端口（1～65535）和后端地址';return;}
   if(!confirm(`确认在远端新增 ${payload.server_name}:${payload.port} → ${payload.upstream}？`))return;
   button.disabled=true;button.textContent='创建并验证中…';status.textContent='正在写入配置、校验、重载并验证监听…';
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);
+  const mayIssue=payload.ssl&&!payload.certificate_id&&canAutoIssueProxyCertificate(payload.server_name.toLowerCase().replace(/\.+$/,''));
+  if(mayIssue)status.textContent='正在匹配证书，需要时将自动签发，然后创建并验证反代…';
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),mayIssue?240000:60000);
   try{
     const r=await fetch('/api/reverse-proxies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
     const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);
@@ -599,9 +785,10 @@ async function createReverseProxy(){
   }catch(e){status.textContent=e.name==='AbortError'?'等待超过 60 秒，结果未知。请读取远端配置核对，不要重复创建。':`创建失败：${e.message||e}`;}
   finally{clearTimeout(timer);button.disabled=false;button.textContent='创建并同步';}
 }
+let mihomoConfigRevision=null;
 async function loadMihomoConfig(){
   const status=document.getElementById('mihomoConfigStatus'); status.textContent='读取中…';
-  try { const r=await fetch('/api/mihomo/config',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); document.getElementById('mihomoConfigText').value=data.content||''; status.textContent=`已加载 ${data.size||0} 字节`; }
+  try { const r=await fetch('/api/mihomo/config',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); document.getElementById('mihomoConfigText').value=data.content||''; mihomoConfigRevision=data.revision??null; status.textContent=`已加载 ${data.size||0} 字节`; }
   catch(e) { status.textContent=`读取失败：${e.message||e}`; }
 }
 function readMihomoFile(event){ const file=event.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ document.getElementById('mihomoConfigText').value=reader.result; document.getElementById('mihomoConfigStatus').textContent=`已导入 ${file.name}，尚未应用`; }; reader.onerror=()=>{ document.getElementById('mihomoConfigStatus').textContent='文件读取失败'; }; reader.readAsText(file); }
@@ -610,7 +797,7 @@ async function applyMihomoConfig(){
   if(!text.trim()) { status.textContent='请先加载或导入 YAML'; return; }
   if(!confirm('确认校验并应用 Mihomo 配置？Mihomo 会短暂重载代理服务。')) return;
   status.textContent='校验、备份并重载中…';
-  try { const r=await fetch('/api/mihomo/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已应用；备份：${data.backup||'无'}`; await load(); }
+  try { const r=await fetch('/api/mihomo/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:text,expected_revision:mihomoConfigRevision})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); mihomoConfigRevision=data.revision??null; status.textContent=`已应用；备份：${data.backup||'无'}`; await load(); }
   catch(e) { status.textContent=`应用失败：${e.message||e}`; }
 }
 async function controlMihomo(action){
@@ -660,18 +847,14 @@ function render(data) {
     ['直连连接', `${m.direct_count||0} / ${bytes((m.direct_bytes||{}).download)}`, '']
   ].map(x=>`<div class="panel"><div class="label">${x[0]}</div><div class="metric ${x[2]}">${x[1]}</div></div>`).join('');
   if(m.error) document.getElementById('metrics').innerHTML += `<div class="panel error">${esc(m.error)}</div>`;
-  const apps=data.applications||[];
-  const registry=data.application_registry||{};
-  document.getElementById('apps').innerHTML = apps.length ? `<div class="muted small">应用识别：实时活动连接 + 配置应用${registry.source==='saved_scan'?'；已保存扫描记录用于辅助匹配':''}${registry.scanned_at?`；上次扫描：${esc(formatPanelDate(registry.scanned_at))}`:''}</div><table><tr><th>应用</th><th>配置模式</th><th>当前观测</th><th>连接数</th><th>累计下载/上传</th><th>说明</th></tr>${apps.map(a=>`<tr><td>${esc(a.name)}</td><td>${mode(a.expected_mode)}</td><td>${mode(a.observed_mode)}</td><td>${a.active_connections}</td><td>${bytes(a.download)} / ${bytes(a.upload)}</td><td>${esc(a.qbt_proxy ? `qBittorrent代理：${a.qbt_proxy.configured?'已配置':'未配置'} ${a.qbt_proxy.host||''}:${a.qbt_proxy.port||''}` : (a.note||''))}</td></tr>`).join('')}</table>` : '未配置应用。';
-  const conns=m.connections||[];
-  document.getElementById('connections').innerHTML = conns.length ? `<table><tr><th>路由</th><th>来源</th><th>目标</th><th>链路</th><th>规则</th><th>流量</th></tr>${conns.map(c=>`<tr><td>${mode(c.route)}</td><td><code>${esc(c.source_ip)}:${esc(c.source_port)}</code><br><span class="muted small">${esc(c.process)}</span></td><td>${esc(c.host)}:${esc(c.destination_port)}</td><td>${esc((c.chains||[]).join(' → '))}</td><td>${esc(c.rule)}</td><td>${bytes(c.download)} ↓<br>${bytes(c.upload)} ↑</td></tr>`).join('')}</table>` : '当前没有活动连接。';
+  sourceConnections=m.connections||[];
+  renderSourceConnections();
   const certs=data.certificates||[];
   document.getElementById('certs').innerHTML = certs.length ? `<table><tr><th>证书</th><th>类型</th><th>状态</th><th>到期时间</th><th>剩余</th><th>一致性/操作</th></tr>${certs.map(c=>{ const match=c.kind==='remote' ? (c.matches_local===true?'与本地一致':c.matches_local===false?'<span class="critical">与本地不一致</span>':'无法比较') : ''; const action=`${c.kind==='remote'&&c.sync_enabled ? `<button class="cell-action" onclick='syncCert(${JSON.stringify(c.id)})'>同步本地证书</button>` : ''}${c.status==='expired' ? `<button class="cell-action danger" onclick='deleteExpiredCert(${JSON.stringify(c.id)},${JSON.stringify(c.name)})'>删除过期记录</button>` : ''}`; const check=c.verified===true?'TLS验证通过':c.verified===false?'TLS验证失败':esc(c.error||'本地证书已读取'); return `<tr><td>${esc(c.name)}<br><span class="muted small">${esc(c.domain||c.path||`${c.host}:${c.port}`)}</span></td><td>${c.kind==='local'?'NAS本地':'远端服务器'}</td><td class="${esc(c.status)}">${esc(c.status)}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'-')}</td><td>${c.days_left==null?'-':`${c.days_left} 天`}</td><td>${match}<br>${check}${action}</td></tr>`; }).join('')}</table>` : '未配置证书。';
   renderSchedule(data.schedule||{});
   document.getElementById('footer').textContent=`最后更新：${formatPanelDate(data.generated_at)}`;
 }
-async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 NASBridge 配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 NASBridge 证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
-async function scanApplications(){ const status=document.getElementById('appScanStatus'); status.textContent='扫描中…'; try { const r=await fetch('/api/applications/scan',{method:'POST'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); status.textContent=`已记录 ${data.applications.length} 个应用，发现 ${data.connections_seen} 条连接`; await load(); } catch(e) { status.textContent=`扫描失败：${e.message||e}`; } }
+async function deleteExpiredCatalogCert(id,name){if(!confirm(`确认删除已过期证书“${name}”的目录记录？会备份 鸟巢配置，服务器上的证书文件保留。`))return;try{const r=await fetch('/api/reverse-proxy-certificates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({certificate_id:id})});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已删除');await load();}catch(e){alert(`删除失败：${e.message||e}`);}}async function deleteExpiredCert(id,name){if(!confirm(`确认从 鸟巢证书列表移除已过期证书“${name}”？配置会备份，证书文件本身不会删除。`))return;try{const r=await fetch(`/api/certificates/${encodeURIComponent(id)}`,{method:'DELETE'});const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);alert(data.message||'已移除');await load();}catch(e){alert(`移除失败：${e.message||e}`);}}async function syncCert(id){ if(!confirm('确认把本地证书同步到远端并 reload Nginx？')) return; try { const r=await fetch(`/api/certificates/${encodeURIComponent(id)}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); alert(data.message||'同步完成'); await load(); } catch(e) { alert(`同步失败：${e.message||e}`); } }
 async function saveSchedule(){
   const mode=document.getElementById('scheduleMode').value;
   const days=[...document.querySelectorAll('#customDays input:checked')].map(x=>Number(x.value));
@@ -755,11 +938,11 @@ function renderDailyTasks(data){
   const visibleRuns=showHiddenDailyRuns?runs:runs.filter(run=>!run.hidden);
   const hiddenCount=data.hidden_run_count||runs.filter(run=>run.hidden).length;
   const runsHost=document.getElementById('dailyTaskRuns');
-  runsHost.innerHTML=(hiddenCount?'<p class="muted small">'+hiddenCount+' 条记录已隐藏。 <button onclick="toggleHiddenDailyRuns()">'+(showHiddenDailyRuns?'收起隐藏记录':'显示隐藏记录')+'</button></p>':'')+(visibleRuns.length?'<table><tr><th>日期 / 开始时间</th><th>总状态</th><th>媒体处理</th><th>概要生成</th><th>文件数（视频/原文/概要）</th><th>skill 更新</th><th>结果 / 错误</th><th>操作</th></tr>'+visibleRuns.map(run=>{
+  runsHost.innerHTML=(hiddenCount?'<p class="muted small">'+hiddenCount+' 条记录已隐藏。 <button onclick="toggleHiddenDailyRuns()">'+(showHiddenDailyRuns?'收起隐藏记录':'显示隐藏记录')+'</button></p>':'')+(visibleRuns.length?'<table><tr><th>日期 / 开始时间</th><th>总状态</th><th>媒体处理</th><th>概要生成</th><th>文件数（视频/原文/概要）</th><th>观察记录</th><th>主框架</th><th>判断原因</th><th>结果 / 错误</th><th>操作</th></tr>'+visibleRuns.map(run=>{
     const duration=run.finished_at&&run.started_at?Math.max(0,Math.round((new Date(run.finished_at)-new Date(run.started_at))/1000))+' 秒':run.finished_at?'—':run.status==='running'?'进行中':'未记录结束时间';
     const stateClass=run.status==='success'?'ok':['failed','logging_failed','interrupted','timed_out'].includes(run.status)?'critical':'warning';
     const message=run.error_message||run.run_summary||'—';
-    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+dailyTaskRunProgress(run)+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td><td>'+(run.skill_updated?'已更新':'未变化')+'</td><td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
+    return '<tr><td>'+formatPanelDate(run.run_date,{dateOnly:true})+'<br><span class="muted small">'+dailyTaskDate(run.started_at)+' · '+duration+'</span></td><td class="'+stateClass+'">'+esc(dailyTaskStatusLabel(run.status))+dailyTaskRunProgress(run)+'</td><td>'+esc(dailyTaskStatusLabel(run.media_status))+'</td><td>'+esc(dailyTaskStatusLabel(run.summary_status))+'</td><td>'+(run.video_count||0)+' / '+(run.transcript_count||0)+' / '+(run.summary_count||0)+'</td>'+dailyTaskSkillCells(run)+'<td>'+esc(message)+'</td><td><button onclick="dailyTaskAction(\''+(run.hidden?'restore_run':'hide_run')+'\',\''+esc(run.run_id)+'\')">'+(run.hidden?'恢复显示':'隐藏')+'</button></td></tr>';
   }).join('')+'</table>':'暂无运行记录。');
   const latest=data.latest_unread_summary;
   const notice=document.getElementById('latestUnreadSummary');
@@ -781,12 +964,18 @@ async function load(){ try { const r=await fetch('/api/overview',{cache:'no-stor
 toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
-<script src="/static/sms.js?v=20261015-relative-date"></script>
-<script src="/static/videos.js?v=20261015-dates"></script>
+<script src="/static/proxy-groups.js?v=20261102-layout"></script>
+<link rel="stylesheet" href="/static/sms.css?v=20261122">
+<script src="/static/sms.js?v=20261122-read-state"></script>
+<script src="/static/videos.js?v=20261105-playback"></script>
+<script src="/static/wechat.js?v=20261103-article-list"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
-<script src="/static/zerotier.js?v=20261009-defaults"></script>
+<script src="/static/zerotier.js?v=20261025-planet"></script>
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
-<script src="/static/view-state.js?v=20261009-tab-map"></script>
+<script src="/static/android-setup.js?v=20261022-local-priority"></script>
+<script src="/static/codex-accounts.js?v=6"></script>
+<script src="/static/devices.js?v=2"></script>
+<script src="/static/view-state.js?v=20261103-wechat-tabs"></script>
 </body>
 </html>

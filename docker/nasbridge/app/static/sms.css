@@ -1,0 +1,36 @@
+#smsItems .sms-card {
+  border: 1px solid #c9c3b8;
+  border-left: 5px solid #b7b2aa;
+  background: #fffcf4;
+}
+#smsItems .sms-card.sms-unread {
+  border-color: #8ea4cb;
+  border-left-color: #4d669d;
+  background: #eef3fc;
+}
+#smsItems .sms-card.sms-recent {
+  border-color: #df8c3f;
+  border-left-color: #bc5516;
+  background: #fff0d8;
+}
+.sms-card-heading, .sms-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sms-card-heading {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sms-card-heading h3 { margin: 0; }
+.sms-read-label, .sms-recent-label {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sms-read-label.is-unread { background: #4d669d; color: #fff; }
+.sms-read-label.is-read { background: #e6e2d9; color: #5d5860; }
+.sms-recent-label { background: #a7440c; color: #fff; }
+.sms-recent-label[hidden] { display: none; }

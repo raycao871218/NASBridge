@@ -108,6 +108,31 @@ VIDEO_ROOT = Path(os.environ.get("NASBRIDGE_VIDEO_ROOT", "/app/media/rhino/视�
 VIDEO_INDEX = Path(os.environ.get("NASBRIDGE_VIDEO_INDEX", "/app/media/rhino/.rhino-finance-video-index.tsv"))
 
 
+def indexed_video_path(root: Path, value: str) -> Path:
+    name = value.replace("\\", "/").rsplit("/", 1)[-1]
+    path = (root / name).resolve(strict=True)
+    if path.parent != root or path.suffix.lower() != ".mp4" or not path.is_file():
+        raise FileNotFoundError(name)
+    return path
+
+
+def archived_video_count(day) -> int:
+    root = VIDEO_ROOT.resolve(strict=True)
+    prefix = day.strftime("%Y%m%d")
+    archived = set()
+    for line in VIDEO_INDEX.read_text(encoding="utf-8").splitlines():
+        video_id, separator, value = line.partition("\t")
+        name = value.replace("\\", "/").rsplit("/", 1)[-1]
+        if not separator or not re.match(prefix + r"[-_ ]", name) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", video_id):
+            continue
+        try:
+            indexed_video_path(root, value)
+        except FileNotFoundError:
+            continue
+        archived.add(video_id)
+    return len(archived)
+
+
 def resolve_video(video_id: str) -> Path:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", video_id):
         raise HTTPException(status_code=404, detail="视频不存在")
@@ -117,10 +142,10 @@ def resolve_video(video_id: str) -> Path:
             parts = line.split("\t", 1)
             if len(parts) != 2 or parts[0] != video_id:
                 continue
-            name = parts[1].replace("\\", "/").rsplit("/", 1)[-1]
-            path = (root / name).resolve(strict=True)
-            if path.parent == root and path.suffix.lower() == ".mp4" and path.is_file():
-                return path
+            try:
+                return indexed_video_path(root, parts[1])
+            except FileNotFoundError:
+                continue
     except (OSError, UnicodeError):
         pass
     raise HTTPException(status_code=404, detail="视频尚未下载或文件不可用")

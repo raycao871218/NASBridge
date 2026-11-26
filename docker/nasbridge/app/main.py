@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import logging
@@ -28,7 +29,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -48,15 +49,25 @@ MIHOMO_CONTROL_URL = os.getenv("MIHOMO_CONTROL_URL", "http://mihomo-control:8001
 from .aliyun import router as aliyun_router
 
 app = FastAPI(title="NASBridge", version="0.1.0")
+from .source_aliases import router as source_alias_router, label_connections, read_rules as read_source_aliases
+app.include_router(source_alias_router)
+from .proxy_groups import router as proxy_groups_router
+app.include_router(proxy_groups_router)
 app.include_router(aliyun_router)
 from .zerotier import router as zerotier_router
 app.include_router(zerotier_router)
 from .mobile_api import router as mobile_router
 app.include_router(mobile_router)
+from .android_setup import router as android_setup_router
+app.include_router(android_setup_router)
 from .daily_task_control import router as daily_task_control_router, manual_control_status
 app.include_router(daily_task_control_router)
+from .codex_accounts import router as codex_accounts_router
+app.include_router(codex_accounts_router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 certificate_sync_lock = asyncio.Lock()
+mihomo_config_lock = asyncio.Lock()
+certificate_inspection_slots = asyncio.Semaphore(4)
 scheduler_task: asyncio.Task[None] | None = None
 
 STATE_TABLE_SQL = """
@@ -469,6 +480,52 @@ def dns_name_matches(pattern: str, hostname: str) -> bool:
     return pattern == hostname
 
 
+def auto_certificate_domain(server_name: str, settings: dict[str, Any]) -> str | None:
+    domain = server_name.lower().rstrip(".")
+    labels = domain.split(".")
+    if len(labels) < 2 or len(domain) > 253 or not all(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels
+    ):
+        return None
+    issuance = settings.get("auto_certificate") or {}
+    if not issuance.get("cloudflare_credentials"):
+        return None
+    for zone in issuance.get("zones", []):
+        zone = zone.lower().rstrip(".")
+        if zone and (domain == zone or domain.endswith("." + zone)):
+            return domain
+    return None
+
+
+def auto_certificate_source(domain: str) -> dict[str, Any]:
+    cert_id = f"nasbridge-{domain}"
+    directory = f"/etc/letsencrypt/live/{cert_id}"
+    return {
+        "id": cert_id, "name": domain, "managed": True,
+        "remote_cert_path": f"{directory}/fullchain.pem",
+        "remote_key_path": f"{directory}/privkey.pem",
+    }
+
+
+def issue_reverse_proxy_certificate(domain: str, settings: dict[str, Any]) -> None:
+    source = auto_certificate_source(domain)
+    command = shlex.join([
+        "timeout", "150", "flock", "-w", "5", "/run/nasbridge-certbot.lock",
+        "certbot", "certonly", "--non-interactive",
+        "--keep-until-expiring", "--dns-cloudflare", "--dns-cloudflare-credentials",
+        settings["auto_certificate"]["cloudflare_credentials"],
+        "--dns-cloudflare-propagation-seconds", "30", "--cert-name", source["id"], "-d", domain,
+    ])
+    client = remote_ssh_client(settings)
+    try:
+        _stdin, stdout, stderr = client.exec_command(command, timeout=160)
+        if stdout.channel.recv_exit_status() != 0:
+            logging.error("Certbot failed for %s: %s", domain, stderr.read().decode(errors="replace")[-2000:])
+            raise HTTPException(status_code=502, detail=f"证书签发失败：{domain}。请检查远端 Certbot 日志后重试。")
+    finally:
+        client.close()
+
+
 def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     local_by_id = {str(item.get("id")): item for item in settings.get("local_certificates", [])}
@@ -476,7 +533,18 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
     client = remote_ssh_client(settings)
     sftp = client.open_sftp()
     try:
-        for item in settings.get("remote_certificates", []):
+        remote_items = list(settings.get("remote_certificates", []))
+        if (settings.get("auto_certificate") or {}).get("cloudflare_credentials"):
+            try:
+                lineages = sftp.listdir("/etc/letsencrypt/live")
+            except FileNotFoundError:
+                lineages = []
+            for lineage in lineages:
+                if lineage.startswith("nasbridge-"):
+                    domain = lineage.removeprefix("nasbridge-")
+                    if auto_certificate_domain(domain, settings) == domain:
+                        remote_items.append(auto_certificate_source(domain))
+        for item in remote_items:
             cert_path = str(item.get("remote_cert_path") or "")
             key_path = str(item.get("remote_key_path") or "")
             cert_id = str(item.get("id") or item.get("local_ref") or cert_path)
@@ -525,6 +593,7 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
                 "available": available,
                 "key_matches": key_matches,
                 "source": source,
+                "managed": bool(item.get("managed")),
                 "fingerprint": fingerprint,
             })
 
@@ -561,21 +630,22 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
             grouped[key] = option
             continue
         current = grouped[key]
+        if not current["available"] and option["available"]:
+            option, current = current, option
+            grouped[key] = current
         sources = {current.get("source"), option.get("source")}
         current["source"] = " + ".join(sorted(value for value in sources if value))
         current["available"] = current["available"] or option["available"]
         if not current.get("expires_at") or (option.get("expires_at") and option["expires_at"] > current["expires_at"]):
             current["expires_at"] = option["expires_at"]
             current["status"] = option["status"]
-        if not current["available"] and option["available"]:
-            current["id"] = option["id"]
-            current["name"] = option["name"]
     return sorted(grouped.values(), key=lambda option: (option.get("domains", [""])[0] if option.get("domains") else "", option["name"]))
 
 
 def select_reverse_proxy_certificate(server_name: str, settings: dict[str, Any], certificate_id: str | None = None) -> dict[str, Any]:
     options = reverse_proxy_certificate_options(settings)
     sources = {str(item.get("id")): item for item in settings.get("remote_certificates", [])}
+    sources.update({item["id"]: auto_certificate_source(item["name"]) for item in options if item.get("managed")})
     if certificate_id:
         option = next((item for item in options if item["id"] == certificate_id), None)
         if not option:
@@ -599,6 +669,10 @@ def select_reverse_proxy_certificate(server_name: str, settings: dict[str, Any],
         score = 2 if server_name.lower().rstrip(".") in option["domains"] else 1
         matches.append((score, source, option))
     if not matches:
+        domain = auto_certificate_domain(server_name, settings)
+        if domain:
+            issue_reverse_proxy_certificate(domain, settings)
+            return select_reverse_proxy_certificate(server_name, settings, auto_certificate_source(domain)["id"])
         raise HTTPException(status_code=400, detail=f"没有有效证书匹配域名 {server_name}；请检查证书和私钥，或关闭 HTTPS")
     best_score = max(match[0] for match in matches)
     best = [match for match in matches if match[0] == best_score]
@@ -624,6 +698,11 @@ def parse_nginx_reverse_proxies(nginx_dump: str) -> list[dict[str, Any]]:
             depth = line.count("{") - line.count("}")
             continue
         if block is None:
+            continue
+        if line.startswith("#"):
+            if line.startswith("# nasbridge-service-name:"):
+                block["service_name"] = line.partition(":")[2].strip()
+                block["service_name_source"] = "config"
             continue
         listen_match = re.match(r"listen\s+([^;]+);", line)
         if listen_match:
@@ -683,6 +762,8 @@ def remote_ssh_client(settings: dict[str, Any]) -> paramiko.SSHClient:
 def label_reverse_proxies(items: list[dict[str, Any]], catalog: dict[str, Any]) -> list[dict[str, Any]]:
     hosts = {str(item.get('name', '')).lower(): str(item.get('ip', '')) for item in catalog.get('zt_ip', [])}
     for item in items:
+        if item.get('service_name_source') == 'config' and item.get('service_name'):
+            continue
         port = item.get('remote_port')
         upstream_hosts = {urlparse(url).hostname for url in item.get('proxy_pass', [])}
         names = set()
@@ -854,6 +935,11 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
     if len(entries) != 1 or len(entries[0].get("server_name", [])) != 1 or len(entries[0].get("proxy_pass", [])) != 1:
         raise HTTPException(status_code=409, detail="此配置包含多个域名或后端，暂不支持单独编辑")
     entry = entries[0]
+    service_name = None
+    if "name" in payload:
+        service_name = str(payload["name"]).strip()
+        if not service_name or len(service_name) > 100 or any(ord(char) < 32 or ord(char) == 127 for char in service_name):
+            raise HTTPException(status_code=400, detail="服务名称须为 1–100 个字符，且不能包含换行或控制字符")
     server_name = str(payload.get("server_name", entry["server_name"][0])).strip()
     upstream = str(payload.get("upstream", entry["proxy_pass"][0])).strip().replace("：", ":")
     if upstream and "://" not in upstream:
@@ -882,6 +968,12 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
             raise HTTPException(status_code=409, detail="配置文件包含多个域名或后端指令，拒绝整体替换")
         updated = name_pattern.sub(lambda match: f"{match.group(1)}{server_name};", content)
         updated = upstream_pattern.sub(lambda match: f"{match.group(1)}{upstream};", updated)
+        if service_name is not None:
+            marker = f"    # nasbridge-service-name: {service_name}\n"
+            updated = re.sub(r"(?m)^[ \t]*# nasbridge-service-name:[^\r\n]*(?:\r?\n|$)", "", updated)
+            updated = re.sub(r"(?m)^(\s*server\s*\{[^\S\r\n]*\r?\n)", lambda match: match.group(1) + marker, updated, count=1)
+            if marker not in updated:
+                raise HTTPException(status_code=409, detail="无法定位服务配置块，拒绝修改名称")
         if updated == content:
             return {"status": "updated", "verified": True, "message": "配置没有变化", "id": proxy_id, "server_name": server_name, "upstream": upstream}
         temporary = _sftp_write_temp(sftp, remote_file, updated.encode("utf-8"), 0o644)
@@ -898,7 +990,8 @@ def update_remote_reverse_proxy(proxy_id: str, payload: dict[str, Any], settings
             client.exec_command(f"cp -a -- {shlex.quote(backup_file)} {shlex.quote(remote_file)} && nginx -t && systemctl reload nginx", timeout=30)[1].channel.recv_exit_status()
             raise RuntimeError(f"修改失败，已尝试恢复原配置：{output}")
         verified = [item for item in read_remote_reverse_proxies(settings) if item.get("id") == proxy_id]
-        if not any(server_name in item.get("server_name", []) and upstream in item.get("proxy_pass", []) for item in verified):
+        if not any(server_name in item.get("server_name", []) and upstream in item.get("proxy_pass", [])
+                   and (service_name is None or item.get("service_name") == service_name) for item in verified):
             raise RuntimeError("重载后未回读到修改后的规则，请检查远端配置")
         return {"status": "updated", "verified": True, "message": "反向代理已修改并验证", "id": proxy_id, "server_name": server_name, "upstream": upstream, "backup": backup_file, "remote_output": output}
     finally:
@@ -990,9 +1083,11 @@ def validate_mihomo_config_text(content: str) -> dict[str, Any]:
 
 def read_mihomo_config_file(path: Path) -> dict[str, Any]:
     stat_result = path.stat()
+    content = path.read_text(encoding="utf-8")
     return {
         "path": str(path),
-        "content": path.read_text(encoding="utf-8"),
+        "content": content,
+        "revision": hashlib.sha256(content.encode("utf-8")).hexdigest(),
         "modified_at": datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat(),
         "size": stat_result.st_size,
     }
@@ -1003,7 +1098,7 @@ def write_mihomo_config_file(path: Path, content: str) -> str:
     backup_dir = DATA_DIR / "mihomo-backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
-    backup_path = backup_dir / f"config.yaml.{timestamp}.bak"
+    backup_path = backup_dir / f"config.yaml.{timestamp}.{uuid.uuid4().hex}.bak"
     if path.exists():
         backup_path.write_bytes(path.read_bytes())
     temporary = path.with_name(f".{path.name}.nasbridge-{uuid.uuid4().hex}.tmp")
@@ -1436,7 +1531,7 @@ async def build_mihomo_snapshot(config: dict[str, Any]) -> dict[str, Any]:
         version = await mihomo_get("/version", mihomo_config)
         raw_connections = await mihomo_get("/connections", mihomo_config)
         connections = raw_connections.get("connections", []) if isinstance(raw_connections, dict) else []
-        items = [connection_item(item) for item in connections]
+        items = label_connections([connection_item(item) for item in connections], read_source_aliases())
         proxied = [item for item in items if item["route"] == "proxy"]
         direct = [item for item in items if item["route"] == "direct"]
         snapshot.update({
@@ -1500,58 +1595,47 @@ async def sync_all_configured_certificates() -> list[dict[str, Any]]:
 async def certificate_scheduler() -> None:
     while True:
         try:
-            schedule = load_schedule()
+            schedule = await asyncio.to_thread(load_schedule)
             slot = scheduled_slot(schedule)
             if slot and schedule.get("last_run_slot") != slot:
                 results = await sync_all_configured_certificates()
                 failures = [item for item in results if item.get("status") == "error"]
-                schedule = load_schedule()
+                schedule = await asyncio.to_thread(load_schedule)
                 schedule.update({
                     "last_run_slot": slot,
                     "last_run_at": utc_now().isoformat(),
                     "last_result": "failed" if failures else "success",
                     "last_error": "; ".join(f"{item.get('id')}: {item.get('error')}" for item in failures) or None,
                 })
-                save_schedule(schedule)
+                await asyncio.to_thread(save_schedule, schedule)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            schedule = load_schedule()
-            schedule["last_result"] = "failed"
-            schedule["last_error"] = f"计划任务失败：{type(exc).__name__}: {exc}"
-            save_schedule(schedule)
+            logging.exception("证书计划任务失败，将在下一轮重试")
+            try:
+                schedule = await asyncio.to_thread(load_schedule)
+                schedule["last_result"] = "failed"
+                schedule["last_error"] = f"计划任务失败：{type(exc).__name__}: {exc}"
+                await asyncio.to_thread(save_schedule, schedule)
+            except Exception:
+                logging.exception("无法保存证书计划错误状态，将在下一轮重试")
         await asyncio.sleep(20)
 
 
 async def build_overview() -> dict[str, Any]:
     config = load_config()
     mihomo = await build_mihomo_snapshot(config)
+    # Keep the response field for older clients, without inferring applications
+    # from shared source IPs or manually configured application names.
     applications: list[dict[str, Any]] = []
-    registry_apps = load_applications(config)
-    # Re-discover from the live Mihomo snapshot on every overview request. Saved scan
-    # records remain useful as matching metadata, but discovered rows are only shown
-    # while a matching connection is currently active.
-    current_apps = discovered_application_records(mihomo, registry_apps)
-    for item in current_apps:
-        matched = [connection for connection in mihomo.get("connections", []) if connection_matches(connection, item)]
-        if item.get("discovered") and not matched:
-            continue
-        routes = {connection["route"] for connection in matched}
-        observed = "idle" if not matched else "mixed" if len(routes) > 1 else next(iter(routes))
-        applications.append({
-            "id": item.get("id"),
-            "name": item.get("name", item.get("id")),
-            "expected_mode": item.get("expected_mode", "unknown"),
-            "observed_mode": observed,
-            "active_connections": len(matched),
-            "upload": sum(connection["upload"] for connection in matched),
-            "download": sum(connection["download"] for connection in matched),
-            "connections": matched[:50],
-            "note": item.get("note"),
-            "qbt_proxy": qbt_proxy_status(item.get("qbt_config")),
-        })
-    certs = [inspect_local_cert(item) for item in config.get("certificates", {}).get("local", [])]
-    certs.extend(inspect_remote_cert(item) for item in config.get("certificates", {}).get("remote", []))
+    async def inspect(inspector, item):
+        async with certificate_inspection_slots:
+            return await asyncio.to_thread(inspector, item)
+
+    certs = await asyncio.gather(
+        *(inspect(inspect_local_cert, item) for item in config.get("certificates", {}).get("local", [])),
+        *(inspect(inspect_remote_cert, item) for item in config.get("certificates", {}).get("remote", [])),
+    )
     local_by_id = {item.get("id"): item for item in certs if item.get("kind") == "local"}
     for remote in (item for item in certs if item.get("kind") == "remote"):
         local = local_by_id.get(remote.get("local_ref"))
@@ -1559,7 +1643,7 @@ async def build_overview() -> dict[str, Any]:
             remote["matches_local"] = local["fingerprint_sha256"] == remote["fingerprint_sha256"]
         else:
             remote["matches_local"] = None
-    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": application_registry_state(), "certificates": certs, "schedule": schedule_state(), "generated_at": utc_now().isoformat()}
+    return {"app": config.get("app", {}), "mihomo": mihomo, "applications": applications, "application_registry": {}, "certificates": certs, "schedule": await asyncio.to_thread(schedule_state), "generated_at": utc_now().isoformat()}
 
 
 @app.on_event("startup")
@@ -1732,7 +1816,13 @@ async def health() -> dict[str, Any]:
 
 
 @app.post("/api/mihomo/container/{action}")
-async def control_mihomo(action: str) -> dict[str, Any]:
+async def control_mihomo(action: str, request: Request) -> dict[str, Any]:
+    origin = request.headers.get("origin")
+    if request.headers.get("sec-fetch-site") == "cross-site" or (origin and (
+        urlparse(origin).scheme not in {"http", "https"}
+        or urlparse(origin).netloc != request.headers.get("host")
+    )):
+        raise HTTPException(status_code=403, detail="不接受跨站请求")
     return await control_mihomo_container(action)
 
 
@@ -1748,17 +1838,28 @@ async def get_mihomo_config() -> dict[str, Any]:
 
 @app.put("/api/mihomo/config")
 async def update_mihomo_config(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    async with mihomo_config_lock:
+        return await apply_mihomo_config(payload)
+
+
+async def apply_mihomo_config(payload: dict[str, Any]) -> dict[str, Any]:
     content = payload.get("content")
     if not isinstance(content, str):
         raise HTTPException(status_code=400, detail="请求必须包含 content 字符串")
     validate_mihomo_config_text(content)
     config = load_config()
     path = mihomo_config_path(config)
+    expected_revision = payload.get("expected_revision")
+    if expected_revision is not None:
+        current = await asyncio.to_thread(read_mihomo_config_file, path)
+        if expected_revision != current["revision"]:
+            raise HTTPException(status_code=409, detail="Mihomo 配置已变更，请重新加载后再保存")
     backup_path = ""
     try:
         backup_path = await asyncio.to_thread(write_mihomo_config_file, path, content)
         await mihomo_reload(config.get("mihomo", {}))
-        return {"status": "applied", "message": "Mihomo 配置已保存并重载", "backup": backup_path}
+        return {"status": "applied", "message": "Mihomo 配置已保存并重载", "backup": backup_path,
+                "revision": hashlib.sha256(content.encode("utf-8")).hexdigest()}
     except Exception as exc:
         if backup_path:
             try:
@@ -1784,6 +1885,8 @@ async def get_reverse_proxies() -> dict[str, Any]:
             "proxies": proxies,
             "remote_host": settings.get("ssh_host"),
             "certificates": reverse_proxy_certificate_options(settings),
+            "auto_certificate_zones": (settings.get("auto_certificate") or {}).get("zones", [])
+            if (settings.get("auto_certificate") or {}).get("cloudflare_credentials") else [],
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"读取远端 Nginx 反代失败：{type(exc).__name__}: {exc}") from exc
@@ -1957,3 +2060,9 @@ app.include_router(sms_router)
 
 from .geofence import router as geofence_router
 app.include_router(geofence_router)
+
+from .home import router as home_router
+app.include_router(home_router)
+
+from .wechat import router as wechat_router
+app.include_router(wechat_router)

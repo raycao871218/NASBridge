@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Rhino Finance Tuesday through Saturday at 10:00 Asia/Shanghai
+
+[Timer]
+OnCalendar=Tue..Sat *-*-* 10:00:00 Asia/Shanghai
+Persistent=false
+Unit=rhino-daily.service
+
+[Install]
+WantedBy=timers.target

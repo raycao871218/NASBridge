@@ -56,6 +56,15 @@ class RunnerTests(unittest.TestCase):
         t.stage_started=time.monotonic();t.started=time.monotonic()-21601
         with self.assertRaisesRegex(self.r.TaskTimeout,'6'):t.check_deadlines()
 
+    def test_historical_discovery_does_not_schedule_or_cancel_today_retry(self):
+        self.payload['target_date'] = '2026-10-14'
+        tracker = self.tracker()
+        with patch.object(self.r, 'record_discovery') as schedule:
+            tracker.event(dict(stage='discover', state='success', pending_count=0, matched_count=0))
+        schedule.assert_not_called()
+        self.assertEqual(tracker.data['target_date'], '2026-10-14')
+        self.assertEqual(tracker.stage('discover')['matched_count'], 0)
+
     @unittest.skipUnless(os.name=='posix','Linux executor signals required')
     def test_real_sigterm_stops_child_and_records_interrupted(self):
         with tempfile.TemporaryDirectory() as folder:

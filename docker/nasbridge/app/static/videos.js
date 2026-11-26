@@ -1,6 +1,26 @@
 // Build media URLs from validated IDs; titles are always rendered as text.
 let videoItems=[],videosRequest=0,videosAbort=null;
 const videoPlayer=document.getElementById('videoPlayer');
+const videoSpeed=document.getElementById('videoSpeed');
+const videoSpeedKey='nasbridge.video.speed';
+let videoPositionKey=null,videoPositionReady=false,lastSavedVideoSecond=0;
+
+function readVideoPreference(key){
+  try{return localStorage.getItem(key);}catch{return null;}
+}
+function writeVideoPreference(key,value){
+  try{
+    if(value===null)localStorage.removeItem(key);
+    else localStorage.setItem(key,value);
+  }catch{}
+}
+function saveVideoPosition(force=false){
+  if(!videoPositionReady||!Number.isFinite(videoPlayer.currentTime))return;
+  const second=videoPlayer.ended||videoPlayer.currentTime>=videoPlayer.duration?0:Math.floor(videoPlayer.currentTime);
+  if(second===lastSavedVideoSecond||(!force&&Math.abs(second-lastSavedVideoSecond)<5))return;
+  writeVideoPreference(videoPositionKey,second>0?String(second):null);
+  lastSavedVideoSecond=second;
+}
 function videoNode(tag,text,cls){const node=document.createElement(tag);if(text!=null)node.textContent=text;if(cls)node.className=cls;return node;}
 function videoDateInfo(item,now=new Date()){
   const day=item.published_date;
@@ -47,20 +67,45 @@ async function loadVideos(){
   finally{if(request===videosRequest)document.getElementById('videosQuery').disabled=false;}
 }
 function openVideo(item){
+  saveVideoPosition(true);
   videoPlayer.pause();document.getElementById('videoTitle').textContent=item.title;
   document.getElementById('videoPlaybackStatus').textContent='点击播放按钮开始播放，可通过进度条跳转、调整音量或全屏。';
   const panel=document.getElementById('videoPlayerPanel');panel.hidden=false;
+  videoPositionKey='nasbridge.video.position.'+item.video_id;
+  videoPositionReady=false;
   videoPlayer.src='/api/videos/'+encodeURIComponent(item.video_id);
   videoPlayer.poster='/api/videos/'+encodeURIComponent(item.video_id)+'/thumbnail?v='+encodeURIComponent(item.thumbnail_version||'');
   videoPlayer.load();panel.scrollIntoView({block:'start'});
 }
 function seekVideo(delta){if(Number.isFinite(videoPlayer.duration))videoPlayer.currentTime=Math.max(0,Math.min(videoPlayer.duration,videoPlayer.currentTime+delta));}
-videoPlayer.addEventListener('loadedmetadata',()=>{videoPlayer.playbackRate=Number(document.getElementById('videoSpeed').value);});
+const savedVideoSpeed=readVideoPreference(videoSpeedKey);
+if(Array.from(videoSpeed.options).some(option=>option.value===savedVideoSpeed))videoSpeed.value=savedVideoSpeed;
+videoPlayer.defaultPlaybackRate=videoPlayer.playbackRate=Number(videoSpeed.value);
+videoPlayer.addEventListener('loadedmetadata',()=>{
+  videoPlayer.playbackRate=Number(videoSpeed.value);
+  if(!videoPositionKey)return;
+  const second=Number(readVideoPreference(videoPositionKey));
+  lastSavedVideoSecond=Number.isFinite(second)&&second>0&&second<videoPlayer.duration?second:0;
+  if(lastSavedVideoSecond>0)videoPlayer.currentTime=lastSavedVideoSecond;
+  videoPositionReady=true;
+});
+videoPlayer.addEventListener('timeupdate',()=>saveVideoPosition());
+for(const event of ['pause','seeked','ended'])videoPlayer.addEventListener(event,()=>saveVideoPosition(true));
+window.addEventListener('pagehide',()=>saveVideoPosition(true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveVideoPosition(true);});
 videoPlayer.addEventListener('error',()=>{document.getElementById('videoPlaybackStatus').textContent='视频加载失败或浏览器不支持此编码，请重新选择视频重试。';});
-document.getElementById('videoSpeed').onchange=event=>{videoPlayer.playbackRate=Number(event.target.value);};
+videoSpeed.onchange=()=>{
+  videoPlayer.defaultPlaybackRate=videoPlayer.playbackRate=Number(videoSpeed.value);
+  writeVideoPreference(videoSpeedKey,videoSpeed.value);
+};
 document.getElementById('videoBack').onclick=()=>seekVideo(-10);
 document.getElementById('videoForward').onclick=()=>seekVideo(10);
-document.getElementById('videoClose').onclick=()=>{videoPlayer.pause();videoPlayer.removeAttribute('src');videoPlayer.removeAttribute('poster');videoPlayer.load();document.getElementById('videoPlayerPanel').hidden=true;document.getElementById('videosRefresh').focus();};
+document.getElementById('videoClose').onclick=()=>{
+  saveVideoPosition(true);
+  videoPositionKey=null;videoPositionReady=false;
+  videoPlayer.pause();videoPlayer.removeAttribute('src');videoPlayer.removeAttribute('poster');videoPlayer.load();
+  document.getElementById('videoPlayerPanel').hidden=true;document.getElementById('videosRefresh').focus();
+};
 document.getElementById('videosRefresh').onclick=()=>void loadVideos();
 document.getElementById('videosQuery').addEventListener('input',renderVideos);
 document.addEventListener('DOMContentLoaded',()=>{if(document.getElementById('videosView').classList.contains('active'))void loadVideos();});

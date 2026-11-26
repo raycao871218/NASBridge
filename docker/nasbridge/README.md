@@ -1,20 +1,25 @@
-# NASBridge Docker 管理面板
+# 鸟巢 · NASBridge Docker 管理面板
 
-这是 NAS 上实际运行的 NASBridge 网页与接口服务源码。当前版本包括：
+这是 NAS 上实际运行的 NASBridge 网页与接口服务源码。管理面板名为「鸟巢」，Android 客户端名为「麻雀会」，采用与「咕咕咕」一致的暖纸蜡笔风，见 [BRANDING.md](BRANDING.md)。当前版本包括：
 
-- Mihomo 在线状态、连接和流量统计、应用识别、配置编辑，以及指定容器的启停控制。
+- 默认首页：最多 6 个常用网站，粘贴网址后自动读取标题，可手动修改。缩略图由 NAS 中的 Chromium 截取真实网页首屏（1280×800），保存在 `data/website-previews`，缓存 6 小时，浏览器缓存 1 小时；同一网址并发请求合并，串行生成以限制资源占用。使用独立、无登录状态的浏览器上下文，不提交表单，禁止 POST 等写入请求和下载；需登录的网站显示公开登录页。截图失败明确提示，已有成功截图可继续显示。支持编辑、移除和新标签页打开；配置存入 NAS 状态库并保留本地备份。省略协议时使用 HTTPS，内网 HTTP 地址需显式填写 `http://`。刷新保留当前栏目，新浏览器会话默认进入首页。
+- Mihomo 在线状态、连接和流量统计、配置编辑，以及指定容器的启停控制。
 - 本地和远端证书检查、证书同步计划、远端 Nginx 反向代理管理。
 - 阿里云安全组、ZeroTier 网络与成员管理。
 - 每日任务记录、文章全文、已读状态、犀牛哥视频列表、缩略图与 HTTP Range 播放接口。
 - 短信归档：分页、搜索、展开全文和验证码复制。
+- Codex 账号：查看并切换 Ubuntu 开发服务器的 CLI 登录，见 [账号管理](ops/CODEX_ACCOUNTS.md)。
 - 视频 Tab：封面列表、标题搜索、在线播放、倍速、前后跳转与浏览器原生全屏；切换 Tab 自动暂停。列表展示接口返回的最近最多 200 部视频，播放编码支持取决于浏览器。
-- 每日任务手动执行：今天没有成功记录时提供入口，运行中禁止重复启动；连接设置见 [执行端配置](ops/DAILY_TASK_CONTROL.md)。
+- 每日任务手动执行：可选择日期补抓，并分别查看归档视频数量与最近任务状态；连接设置见 [执行端配置](ops/DAILY_TASK_CONTROL.md)。
 - 每日任务阶段进度：实时显示当前及已完成阶段、最近心跳与进展；超时/中断记录会自动纠正，执行端部署及判定规则见 [进度记录](ops/runner/README.md)。
+- 每日任务重试与关机保护：周二至周六北京时间 10 点无新视频时，11 点仅重试一次；等待重试及任务执行期间跳过自动关机检测，详见 [执行端调度](ops/shutdown/README.md)。
 - 地理围栏：真实地图搜索选点、拖动圆心、半径调整、周期与时长配置，以及供手机读取的圆形围栏接口（手机执行与 HA 上报后续接入）。
 
 Android App 单独维护，通过这些 HTTP API 访问本服务；本目录不包含 Android 工程，也不包含推送服务。
 
 ## 首次部署
+
+网页截图会自动复用已配置的 Mihomo 出口，内网地址绕过代理；可用 `NASBRIDGE_PREVIEW_PROXY` 显式指定截图代理。镜像包含 Chromium 和中文字体。真实浏览器回归可在构建出的镜像中设置 `NASBRIDGE_BROWSER_TESTS=1` 运行测试，仅访问测试进程的本地页面。
 
 在仓库根目录执行以下步骤。已经运行的 NAS 不需要覆盖配置或重新初始化：
 
@@ -129,6 +134,11 @@ docker run --rm --network none \
 测试通过 mock 或临时目录验证 API，不应写入真实短信、文章已读状态或云资源。阿里云前端逻辑测试仅使用 Node.js 内置模块，可执行 `node test_aliyun_ui.cjs`。
 视频前端测试同样无需依赖或生产连接：`node test_videos_ui.cjs`。
 每日任务前端测试：`node test_daily_task_ui.cjs`。
+Mihomo 配置版本与冲突处理前端测试：`node test_mihomo_config_ui.cjs`。
+
+`tests/test_review_regressions.py` 覆盖跨站容器操作、证书调度数据库故障、证书检测期间的接口响应，以及配置备份、版本冲突与回滚串行执行。证书脚本测试在包含仓库 `src/` 且安装 Bash 时执行，使用模拟 Docker 命令，不连接真实容器。
+
+Mihomo 配置读取接口返回 `revision`，网页保存时提交 `expected_revision`；配置已被其他页面修改时返回 409，需重新加载后再保存。旧客户端未提交版本时仍兼容，当前单进程部署会串行执行保存、重载和失败回滚；备份文件名包含唯一标识，避免同秒保存覆盖。
 
 ## 配置与访问边界
 
@@ -138,4 +148,48 @@ docker run --rm --network none \
 
 其他模块说明见 [ALIYUN.md](ALIYUN.md)、[ZEROTIER.md](ZEROTIER.md) 与 [GEOFENCE.md](GEOFENCE.md)。
 
+## 公众号文章抓取
+
+导航中的“公众号文章”调用单独部署的 `wechat-article-reader`，支持单篇链接抓取、正文预览、复制和 Markdown/JSON 下载。兼容 `/s/文章标识` 与包含 `__biz` 等查询参数的长链接。默认保留正文图片链接，可取消；不会下载图片，JSON 中的图片数组与封面仍保留。
+
+页面分为“抓取文章”和“历史记录”两个页签，进入或刷新默认显示抓取表单和文章正文。每行粘贴一个链接，最多 100 个，自动去除重复输入；网页串行调用单篇接口，多篇之间等待 10 秒，逐篇显示结果，可点击成功项查看正文。普通单篇错误会记录后继续，遇到微信验证、其他抓取占用、服务不可用或连接异常则停止后续抓取；可主动点击“停止后续抓取”，当前请求完成后停止。批次由当前网页执行，需保持页面打开，刷新或关闭不会在后台继续。
+
+标题与正文非空的成功结果自动保存到现有 PostgreSQL 的 `public.wechat_articles`，包含元数据、完整正文 JSONB 和最近抓取时间；使用已有 `NASBRIDGE_POSTGRES_*` 连接配置，应用自动建表。重复抓取同篇文章更新原记录，长链接以 `__biz/mid/idx` 去重，短链接忽略跟踪参数。历史列表按最近抓取时间倒序、每页 20 篇，支持按标题、公众号、作者和链接搜索。点击“打开文章”直接读取数据库，刷新、切换浏览器或容器重启后仍可查看、复制和下载。空内容和失败抓取不覆盖已有记录；数据库保存失败会保留当前结果并明确提示立即下载。此功能上线前的网页抓取结果未落盘，无法从读取 API 自动补回。
+
+在 NAS 的真实 `config/config.yaml` 添加 `wechat_reader.base_url`，值为读取服务的 HTTP 地址及端口（18765）。与面板同宿主机时可用 `http://host.docker.internal:18765`，也可填写 NAS 内网地址。现有配置未包含此项时会明确提示未配置；无需覆盖其他配置。可通过 `NASBRIDGE_WECHAT_READER_URL` 环境变量覆盖，Compose 模板已加入该变量，现有 `compose.yaml` 使用环境变量时需同步添加。
+
+后端接口：`GET /api/wechat/health`；`POST /api/wechat/read`，JSON 请求体为 `{"url":"https://mp.weixin.qq.com/s/ARTICLE_ID","images":true}`。服务器固定调用上游 JSON 模式和 `browser=never`，编码完整链接，绕过环境代理访问局域网服务；最长等待 60 秒。同一面板进程最多抓取一篇，不自动重试。微信验证、删除、屏蔽、过期等错误会直接提示；健康检查只说明服务在线，抓取后的标题和正文仍需核对。沿用面板现有访问控制，仅在可信网络使用。
+
+历史接口：`GET /api/wechat/articles?q=关键词&page=1&limit=20` 返回摘要分页列表；`GET /api/wechat/articles/{id}` 返回保存的全文。验证：`python -m unittest discover -s tests -p test_wechat.py -v`，使用模拟上游和数据库，不访问真实文章；`node test_wechat_ui.cjs` 验证抓取、导出、历史重开与搜索（需要 Playwright 和 Edge，可通过 `NASBRIDGE_BROWSER_CHANNEL` 指定其他浏览器）。
+
+历史页支持跨页勾选并下载选中项，或打包全部历史；搜索后“打包下载搜索结果”包含全部匹配文章，不限于当前页。ZIP 中每篇包含带元数据的 Markdown 和完整 JSON，以文章 ID 区分同名文章。`POST /api/wechat/export` 接受 `{"q":"关键词"}` 或 `{"ids":["文章ID"]}`（选中最多 1000 篇），返回 ZIP 附件。使用 PostgreSQL 游标逐批读取，临时 ZIP 下载后清理，不重新抓取文章或下载图片。
+
+历史列表突出文章标题与公众号，桌面按列对齐发布时间和最近抓取时间，手机自动分行；点击标题所在行阅读全文，勾选文章后整行高亮。批次结果分别展示编号、状态、文章标题与链接，成功项点击标题即可预览。
+
 ZeroTier 的“打开原管理界面”从本地 `config/config.yaml` 的 `zerotier.admin_url` 读取；仓库不保存实际管理域名。
+
+ZeroTier 页的“下载 planet”通过现有 SSH 连接读取控制器 `ztncui` 容器中的 `/var/lib/zerotier-one/planet`，浏览器保存的文件名为 `planet`。无需选择网络，也无需新增配置。下载的是控制器当前使用的文件；若需要自建 Planet，请先在控制器完成生成和替换。接口 `GET /api/zerotier/planet` 返回二进制附件，文件不存在或读取失败时会在页面提示。
+
+## App 扫码配置
+
+支持通过“添加内网地址”增加最多 8 个候选地址，可删除、上移、下移调整优先级。保存和二维码使用 `network.local_urls` 数组保留顺序，同时保留 `local_url` 为第一项以兼容旧客户端。麻雀会 0.16.9+ 在 Wi-Fi、移动网络或 VPN 下都先依次检查内网 HTTP 连接，全部不可达后才使用外网；不以 SSID 或 ping 作为前置条件。省略协议时内网使用 HTTP，外网使用 HTTPS，各地址可分别带端口。
+
+后台“App 扫码配置”页可将家庭 Wi-Fi、内外网 NAS 地址与端口、HA 地址、实体、长期访问令牌、手机测试模式和当前围栏合为一个二维码。使用 NASBridge Android 0.16.0+，在 App “配置 → 扫码导入配置”预览确认后保存。HA 配置和围栏均可选择不包含。导入后自动同步停止，可在手机启用；系统权限和电池限制仍需手机授权。
+
+二维码内携带配置，请只给自己的手机扫码，不要分享包含令牌的下载文件。点击“保存配置”后，配置和 HA 令牌加密保存到 NAS 持久化数据目录；刷新或重启后自动加载，令牌输入框留空会保留已保存的令牌。读取接口只返回是否保存令牌，不返回明文。页面二维码 5 分钟后隐藏，后台已保存配置保留，下载文件仍可导入。生成接口沿用面板既有访问控制，应在可信内网或受保护的反向代理后使用。不会把数据库、SMTP、云服务等仅由服务端使用的凭据放入手机。
+
+`POST /api/android-setup/qr.svg` 请求包含 `network: {ssid, local_url, public_url}`、可选的 `presence: {url, entity, token, test_mode}` 和 `include_geofence`（默认 true）。二维码文本使用 `NASBRIDGE1:` 加 zlib 压缩 JSON 的无填充 Base64URL，解压后的协议为 `type=nasbridge.android.config`、`version=1`。压缩用于提高扫码成功率，不是加密；手机限制解压数据最多 8 KiB。只接受同源 JSON POST，请求最多 8 KiB、二维码内容最多 2000 字节，格式错误不会回显令牌。服务器不会根据提交的地址发起网络请求。地址可省略协议：内网 NAS 默认补 http://，外网 NAS 和 HA 默认补 https://；显式填写的协议保留。保存与二维码均使用补全后的地址。HA 地址须为 HTTPS，服务地址不可包含账号、查询参数或片段。
+
+保存接口：`GET /api/android-setup/config` 读取已保存配置（不返回令牌）；`PUT /api/android-setup/config` 保存完整配置及 `expected_revision`，旧版本写入返回 409。首次保存 HA 配置必须填写令牌，之后保存或生成二维码时令牌留空可复用已保存值。取消包含 HA 后保存会移除保存的 HA 配置。配置使用 Fernet 加密，原子替换写入，文件与密钥权限为 0600；保存在数据卷的 `android-setup.enc`、`android-setup.key`，备份和恢复时需同时保留两者。接口沿用 NAS 面板已有访问控制；有访问权限的面板使用者可生成包含已保存令牌的二维码。
+
+家庭 Wi-Fi 名称可留空（或省略 `network.ssid`），由 Android 0.16.1+ 在扫码时申请精确定位权限、读取手机当前已连接的 Wi-Fi，并在导入预览中确认。读取失败可重新读取或手动填写；确认前不会保存。后台不推测手机 SSID，也不读取 Wi-Fi 密码。已填写 SSID 的二维码仍按填写值导入，兼容旧版 App。
+
+### 代理节点管理
+
+Mihomo 页按运行状态、代理节点、配置分为三个页签；运行状态页上方并排显示容器操作与统计，下方直接展示当前连接、来源筛选与别名管理；进入或刷新默认显示运行状态，代理节点页签内再按组切换，仅打开节点页签时读取和轮询。
+
+在 Mihomo 代理页的“代理节点”中点选出口；自动组点选后会固定该节点，点击“恢复自动”解除固定。LoadBalance 等不支持手动选择的组只读显示。节点卡片显示组内当前选择、节点类型和最近延迟；单节点测速使用固定的 Google 204 检测地址，不会清除自动组的固定选择。面板每 15 秒刷新，离开此栏目不主动轮询；节点列表读取失败时禁用操作，刷新恢复后可继续。选择通过现有 Mihomo 控制器执行，密钥留在服务端，不修改 YAML 或重启容器。控制器的重启持久性取决于 Mihomo 自身的缓存设置。
+
+新增接口：GET /api/mihomo/proxies、PUT /api/mihomo/proxies/selection（group/name）、POST /api/mihomo/proxies/automatic（group）、POST /api/mihomo/proxies/delay（name）。写入前校验代理组类型和成员，切换及恢复自动后回读确认；失败不自动重试。
+
+验证：Python unittest discover -s tests -p test_proxy_groups.py；浏览器回归 node test_proxy_groups_ui.cjs 需要 Playwright 和 Chromium，可通过 NASBRIDGE_PLAYWRIGHT 指定模块、NASBRIDGE_BROWSER 指定浏览器。所有测试使用模拟控制器，不连接生产代理。

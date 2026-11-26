@@ -7,6 +7,18 @@ async function ztApi(path,body){
  catch(e){if(e.name==='AbortError')throw new Error('请求超时；如已提交成员修改，请刷新列表确认结果。');throw e;}finally{clearTimeout(timer);}
 }
 async function ztRun(fn){if(ztBusy)return;ztBusy=true;ztEl('ztView').querySelectorAll('button,input,select').forEach(x=>x.disabled=true);try{await fn();}catch(e){ztMessage(e.message||String(e));}finally{ztBusy=false;ztEl('ztView').querySelectorAll('button,input,select').forEach(x=>x.disabled=false);}}
+async function downloadZTPlanet(){await ztRun(async()=>{
+ ztMessage('正在读取 planet 文件…');
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),50000);
+ try{
+  const response=await fetch('/api/zerotier/planet',{cache:'no-store',signal:controller.signal});
+  if(!response.ok){const d=await response.json();throw new Error(typeof d.detail==='string'?d.detail:'下载 planet 失败');}
+  const blob=await response.blob();if(!blob.size)throw new Error('planet 文件为空');
+  const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='planet';document.body.appendChild(link);
+  try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+  ztMessage('已开始下载 planet 文件。');
+ }catch(e){if(e.name==='AbortError')throw new Error('下载 planet 超时，请稍后重试。');throw e;}finally{clearTimeout(timer);}
+});}
 async function loadZTNetworks(force=false){if(ztNetworksLoaded&&!force)return;await ztRun(async()=>{
  ztMessage('正在连接控制器并读取默认网络…');const d=await ztApi('networks'),select=ztEl('ztNetwork'),previous=select.value;let saved='';try{saved=localStorage.getItem('nasbridge-zt-network')||'';}catch{}
  select.innerHTML='<option value="">请选择网络</option>'+d.items.map(n=>`<option value="${esc(n.id)}">${esc(n.name||'未命名')} · ${esc(n.id)}</option>`).join('');
