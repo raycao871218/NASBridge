@@ -26,6 +26,12 @@ applications:
 #   ssh_user: "task-user"
 #   ssh_key_path: "/app/config/daily-task-id_ed25519"
 #   ssh_known_hosts: "/app/config/daily-task-known_hosts"
+# Optional: auto-issue missing reverse-proxy certificates with Certbot DNS-01.
+# The Cloudflare credential file and Certbot plugin must exist on the Nginx host.
+# reverse_proxy:
+#   auto_certificate:
+#     zones: ["example.com"]
+#     cloudflare_credentials: "/root/.secrets/certbot/cloudflare.ini"
 certificates:
   local:
     - id: nas_cert
@@ -52,3 +58,11 @@ certificates:
 zerotier:
   # Optional link to your controller UI; keep the actual address in local config.
   admin_url: ""
+# Codex CLI account switcher (optional; see ops/CODEX_ACCOUNTS.md).
+# codex_accounts:
+#   ssh_host: "10.10.0.172"
+#   ssh_user: "caobowen"
+#   ssh_key_path: "/app/config/codex-account-id_ed25519"
+#   ssh_known_hosts: "/app/config/codex-account-known-hosts"
+#   lan_hosts: ["10.10.0.66:18080"]
+#   manual_poweroff: false

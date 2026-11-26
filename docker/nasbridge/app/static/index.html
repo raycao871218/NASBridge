@@ -195,6 +195,7 @@
   <link rel="icon" href="/static/nest.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/crayon.css?v=20261019">
 <link rel="stylesheet" href="/static/proxy-groups.css?v=20261102-layout">
+<link rel="stylesheet" href="/static/codex-accounts.css?v=4">
 </head>
 <body>
 <main>
@@ -211,6 +212,8 @@
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="opsView" onclick="switchView('opsView',this)">证书与反向代理</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="aliyunView" onclick="switchView('aliyunView',this)">阿里云安全组</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="ztView" onclick="switchView('ztView',this)">ZeroTier</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="devicesView" onclick="switchView('devicesView',this)">设备管理</button>
+    <button class="view-tab" role="tab" aria-selected="false" data-view-target="codexAccountsView" onclick="switchView('codexAccountsView',this)">Codex 账号</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="smsView" onclick="switchView('smsView',this)">短信</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="geofenceView" onclick="switchView('geofenceView',this)">地理围栏</button>
     <button class="view-tab" role="tab" aria-selected="false" data-view-target="androidSetupView" onclick="switchView('androidSetupView',this)">App 扫码配置</button>
@@ -369,6 +372,7 @@
     <div class="section-heading"><div><h2>短信</h2><p>查看手机转存的短信，按发送时间从新到旧排列。</p></div><button id="smsRefresh">刷新</button></div>
     <section class="panel">
       <form id="smsSearchForm" class="toolbar"><input id="smsQuery" aria-label="搜索发送人或短信内容" placeholder="搜索发送人或短信内容" maxlength="100"><button type="submit">搜索</button><button type="button" id="smsReset">清空</button></form>
+      <p class="muted small">展开全文或复制验证码后标为已读，记录保存在当前浏览器。发送时间在 3 分钟内的短信以橙色突出显示。</p>
       <p id="smsStatus" class="status-line" role="status">进入后加载短信</p>
       <div id="smsItems" style="overflow-wrap:anywhere"></div>
       <div class="section-actions"><button id="smsPrev">上一页</button><span id="smsPage" class="muted small"></span><button id="smsNext">下一页</button></div>
@@ -563,6 +567,38 @@
       <div class="action-row"><label class="check"><input id="ztMemberAuth" type="checkbox">授权此成员</label><button onclick="document.getElementById('ztEditor').hidden=true">取消</button><button class="primary" onclick="saveZTMember()">保存成员变更</button></div>
     </section>
   </section>
+  <section id="codexAccountsView" class="view">
+    <div class="section-heading codex-heading">
+      <div><h2>Codex 账号</h2><p>Ubuntu 开发服务器</p></div>
+      <button id="codexRefresh" type="button">刷新账号</button>
+    </div>
+    <div id="codexCards" class="codex-cards"></div>
+    <p id="codexFeedback" class="status-line" role="status" aria-live="polite" hidden></p>
+    <dialog id="codexConfirm" aria-labelledby="codexConfirmTitle" aria-describedby="codexConfirmEmail codexConfirmHint">
+      <h2 id="codexConfirmTitle">切换 Codex 账号？</h2>
+      <p id="codexConfirmEmail" class="codex-card-email"></p>
+      <p id="codexConfirmHint" class="muted">切换后请重新启动 Codex。</p>
+      <form method="dialog" class="action-row">
+        <button value="cancel" autofocus>取消</button>
+        <button value="switch" class="primary">确认切换</button>
+      </form>
+    </dialog>
+  </section>
+  <section id="devicesView" class="view">
+    <div class="section-heading codex-heading"><h2>设备管理</h2><button id="devPowerRefresh" type="button">刷新状态</button></div>
+    <section class="panel">
+      <div class="panel-header"><h2>Ubuntu 开发机</h2><button id="devPowerButton" class="danger" type="button" disabled>关机</button></div>
+      <p id="devPowerStatus" class="status-line" role="status">正在检查开发机状态…</p>
+    </section>
+    <dialog id="devPowerConfirm" aria-labelledby="devPowerTitle">
+      <h2 id="devPowerTitle">确认关闭开发机？</h2>
+      <p class="muted">请先保存工作。开发机正常关机并确认离线后，Home Assistant 会关闭智能插座。</p>
+      <form method="dialog" class="action-row">
+        <button value="cancel" autofocus>取消</button>
+        <button value="poweroff" class="danger">确认关机</button>
+      </form>
+    </dialog>
+  </section>
   <div id="footer" class="muted small"></div>
 </main>
 <dialog id="editProxyDialog" aria-labelledby="editProxyTitle">
@@ -649,19 +685,25 @@ function proxyDomainMatches(pattern,hostname){
 function renderProxyCertificateOptions(items){
   reverseProxyCertificates=items;const select=document.getElementById('proxyCertificate');const previous=select.value;
   const stateName={valid:'有效',expiring:'即将到期',expired:'已过期',unavailable:'不可用'};
-  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
+  document.getElementById('proxyCertificateCatalog').innerHTML=items.length?`<table><tr><th>证书</th><th>覆盖域名</th><th>状态</th><th>到期时间</th><th>来源</th><th>操作</th></tr>${items.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc((c.domains||[]).join(', ')||'未识别')}</td><td>${esc(stateName[c.status]||c.status)}${c.key_matches?' · 私钥匹配':''}</td><td>${esc(c.expires_at?formatPanelDate(c.expires_at):'未知')}</td><td>${esc(c.source||'')}</td><td>${c.status==='expired'&&!c.managed?`<button class="danger" data-cert-id='${esc(JSON.stringify(c.id))}' data-cert-name='${esc(c.name)}' onclick="deleteExpiredCatalogCert(JSON.parse(this.dataset.certId),this.dataset.certName)">删除</button>`:'—'}</td></tr>`).join('')}</table>`:'没有发现证书。';
   select.innerHTML='<option value="">按域名自动匹配</option>'+items.map(c=>`<option value="${esc(c.id)}" ${c.available?'':'disabled'}>${esc(c.name)}（${esc((c.domains||[]).join(', ')||'域名未识别')}；${esc(stateName[c.status]||c.status)}${c.expires_at?'；到期 '+esc(c.expires_at.slice(0,10)):''}；${esc(c.source||'')}</option>`).join('');
   if(items.some(c=>c.id===previous))select.value=previous;updateProxyCertificateHint();
+}
+let autoCertificateZones=[];
+function canAutoIssueProxyCertificate(domain){
+  const labels=domain.split('.');
+  return domain.length<=253&&labels.length>=2&&labels.every(label=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))&&autoCertificateZones.some(zone=>domain===zone||domain.endsWith('.'+zone));
 }
 function updateProxyCertificateHint(){
   const hint=document.getElementById('proxyCertificateHint');if(!hint)return;
   if(!document.getElementById('proxySsl').checked){hint.textContent='此入口使用 HTTP，不会配置证书。';return;}
-  const domain=document.getElementById('proxyServerName').value.trim().toLowerCase();const selected=document.getElementById('proxyCertificate').value;
+  const domain=document.getElementById('proxyServerName').value.trim().toLowerCase().replace(/\.+$/,'');const selected=document.getElementById('proxyCertificate').value;
   if(selected){const cert=reverseProxyCertificates.find(c=>c.id===selected);const matches=cert&&(cert.domains||[]).some(pattern=>proxyDomainMatches(pattern,domain));hint.textContent=matches?`将使用 ${cert.name}（${cert.expires_at?`到期 ${cert.expires_at.slice(0,10)}`:'有效期未知'}）。`:cert?`所选证书不覆盖 ${domain||'当前域名'}，创建时会被拒绝。`:'所选证书不可用。';return;}
   const matches=reverseProxyCertificates.filter(c=>c.available&&(c.domains||[]).some(pattern=>proxyDomainMatches(pattern,domain)));
+  if(!matches.length&&canAutoIssueProxyCertificate(domain)){hint.textContent=`暂无可用证书，创建时将自动为 ${domain} 申请并验证证书。`;return;}
   hint.textContent=!domain?'填写域名后自动匹配证书。':matches.length===1?`自动匹配：${matches[0].name}（${matches[0].domains.join(', ')}；到期 ${matches[0].expires_at?matches[0].expires_at.slice(0,10):'未知'}）`:matches.length>1?`有 ${matches.length} 张有效证书覆盖该域名，请手动选择。`:`没有可用证书覆盖 ${domain}；需检查证书、私钥匹配情况或关闭 HTTPS。`;
 }
-async function loadReverseProxies(){ const status=document.getElementById('reverseProxyStatus'); status.textContent='读取中…'; try { const r=await fetch('/api/reverse-proxies',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); renderProxyCertificateOptions(data.certificates||[]); renderReverseProxies(data.proxies||[]); status.textContent=`远端 ${data.remote_host||''}，共 ${(data.proxies||[]).length} 条`; } catch(e) { status.textContent=`读取失败：${e.message||e}`; document.getElementById('reverseProxies').innerHTML=''; } }
+async function loadReverseProxies(){ const status=document.getElementById('reverseProxyStatus'); status.textContent='读取中…'; try { const r=await fetch('/api/reverse-proxies',{cache:'no-store'}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||r.statusText); autoCertificateZones=(data.auto_certificate_zones||[]).map(zone=>zone.toLowerCase().replace(/\.+$/,'')); renderProxyCertificateOptions(data.certificates||[]); renderReverseProxies(data.proxies||[]); status.textContent=`远端 ${data.remote_host||''}，共 ${(data.proxies||[]).length} 条`; } catch(e) { status.textContent=`读取失败：${e.message||e}`; document.getElementById('reverseProxies').innerHTML=''; } }
 function deleteReverseProxy(id){
   if(proxyDeleteBusy) return;
   const item=reverseProxyItems.find(x=>x.id===id);
@@ -731,7 +773,9 @@ async function createReverseProxy(){
   if(!Number.isInteger(payload.port)||payload.port<1||payload.port>65535||!payload.upstream){status.textContent='请填写有效的监听端口（1～65535）和后端地址';return;}
   if(!confirm(`确认在远端新增 ${payload.server_name}:${payload.port} → ${payload.upstream}？`))return;
   button.disabled=true;button.textContent='创建并验证中…';status.textContent='正在写入配置、校验、重载并验证监听…';
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),60000);
+  const mayIssue=payload.ssl&&!payload.certificate_id&&canAutoIssueProxyCertificate(payload.server_name.toLowerCase().replace(/\.+$/,''));
+  if(mayIssue)status.textContent='正在匹配证书，需要时将自动签发，然后创建并验证反代…';
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),mayIssue?240000:60000);
   try{
     const r=await fetch('/api/reverse-proxies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});
     const data=await r.json();if(!r.ok)throw new Error(data.detail||r.statusText);
@@ -921,7 +965,8 @@ toggleCustomDays();
 const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInterval(load,15000);
 </script>
 <script src="/static/proxy-groups.js?v=20261102-layout"></script>
-<script src="/static/sms.js?v=20261015-relative-date"></script>
+<link rel="stylesheet" href="/static/sms.css?v=20261122">
+<script src="/static/sms.js?v=20261122-read-state"></script>
 <script src="/static/videos.js?v=20261105-playback"></script>
 <script src="/static/wechat.js?v=20261103-article-list"></script>
 <script src="/static/aliyun.js?v=20261009-defaults"></script>
@@ -929,6 +974,8 @@ const initialPanelLoad=Promise.allSettled([load(),loadReverseProxies()]); setInt
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/geofence.js?v=20261017-circle"></script>
 <script src="/static/android-setup.js?v=20261022-local-priority"></script>
+<script src="/static/codex-accounts.js?v=6"></script>
+<script src="/static/devices.js?v=2"></script>
 <script src="/static/view-state.js?v=20261103-wechat-tabs"></script>
 </body>
 </html>

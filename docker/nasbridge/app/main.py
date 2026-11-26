@@ -62,6 +62,8 @@ from .android_setup import router as android_setup_router
 app.include_router(android_setup_router)
 from .daily_task_control import router as daily_task_control_router, manual_control_status
 app.include_router(daily_task_control_router)
+from .codex_accounts import router as codex_accounts_router
+app.include_router(codex_accounts_router)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 certificate_sync_lock = asyncio.Lock()
 mihomo_config_lock = asyncio.Lock()
@@ -478,6 +480,52 @@ def dns_name_matches(pattern: str, hostname: str) -> bool:
     return pattern == hostname
 
 
+def auto_certificate_domain(server_name: str, settings: dict[str, Any]) -> str | None:
+    domain = server_name.lower().rstrip(".")
+    labels = domain.split(".")
+    if len(labels) < 2 or len(domain) > 253 or not all(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels
+    ):
+        return None
+    issuance = settings.get("auto_certificate") or {}
+    if not issuance.get("cloudflare_credentials"):
+        return None
+    for zone in issuance.get("zones", []):
+        zone = zone.lower().rstrip(".")
+        if zone and (domain == zone or domain.endswith("." + zone)):
+            return domain
+    return None
+
+
+def auto_certificate_source(domain: str) -> dict[str, Any]:
+    cert_id = f"nasbridge-{domain}"
+    directory = f"/etc/letsencrypt/live/{cert_id}"
+    return {
+        "id": cert_id, "name": domain, "managed": True,
+        "remote_cert_path": f"{directory}/fullchain.pem",
+        "remote_key_path": f"{directory}/privkey.pem",
+    }
+
+
+def issue_reverse_proxy_certificate(domain: str, settings: dict[str, Any]) -> None:
+    source = auto_certificate_source(domain)
+    command = shlex.join([
+        "timeout", "150", "flock", "-w", "5", "/run/nasbridge-certbot.lock",
+        "certbot", "certonly", "--non-interactive",
+        "--keep-until-expiring", "--dns-cloudflare", "--dns-cloudflare-credentials",
+        settings["auto_certificate"]["cloudflare_credentials"],
+        "--dns-cloudflare-propagation-seconds", "30", "--cert-name", source["id"], "-d", domain,
+    ])
+    client = remote_ssh_client(settings)
+    try:
+        _stdin, stdout, stderr = client.exec_command(command, timeout=160)
+        if stdout.channel.recv_exit_status() != 0:
+            logging.error("Certbot failed for %s: %s", domain, stderr.read().decode(errors="replace")[-2000:])
+            raise HTTPException(status_code=502, detail=f"证书签发失败：{domain}。请检查远端 Certbot 日志后重试。")
+    finally:
+        client.close()
+
+
 def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str, Any]]:
     options: list[dict[str, Any]] = []
     local_by_id = {str(item.get("id")): item for item in settings.get("local_certificates", [])}
@@ -485,7 +533,18 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
     client = remote_ssh_client(settings)
     sftp = client.open_sftp()
     try:
-        for item in settings.get("remote_certificates", []):
+        remote_items = list(settings.get("remote_certificates", []))
+        if (settings.get("auto_certificate") or {}).get("cloudflare_credentials"):
+            try:
+                lineages = sftp.listdir("/etc/letsencrypt/live")
+            except FileNotFoundError:
+                lineages = []
+            for lineage in lineages:
+                if lineage.startswith("nasbridge-"):
+                    domain = lineage.removeprefix("nasbridge-")
+                    if auto_certificate_domain(domain, settings) == domain:
+                        remote_items.append(auto_certificate_source(domain))
+        for item in remote_items:
             cert_path = str(item.get("remote_cert_path") or "")
             key_path = str(item.get("remote_key_path") or "")
             cert_id = str(item.get("id") or item.get("local_ref") or cert_path)
@@ -534,6 +593,7 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
                 "available": available,
                 "key_matches": key_matches,
                 "source": source,
+                "managed": bool(item.get("managed")),
                 "fingerprint": fingerprint,
             })
 
@@ -570,21 +630,22 @@ def reverse_proxy_certificate_options(settings: dict[str, Any]) -> list[dict[str
             grouped[key] = option
             continue
         current = grouped[key]
+        if not current["available"] and option["available"]:
+            option, current = current, option
+            grouped[key] = current
         sources = {current.get("source"), option.get("source")}
         current["source"] = " + ".join(sorted(value for value in sources if value))
         current["available"] = current["available"] or option["available"]
         if not current.get("expires_at") or (option.get("expires_at") and option["expires_at"] > current["expires_at"]):
             current["expires_at"] = option["expires_at"]
             current["status"] = option["status"]
-        if not current["available"] and option["available"]:
-            current["id"] = option["id"]
-            current["name"] = option["name"]
     return sorted(grouped.values(), key=lambda option: (option.get("domains", [""])[0] if option.get("domains") else "", option["name"]))
 
 
 def select_reverse_proxy_certificate(server_name: str, settings: dict[str, Any], certificate_id: str | None = None) -> dict[str, Any]:
     options = reverse_proxy_certificate_options(settings)
     sources = {str(item.get("id")): item for item in settings.get("remote_certificates", [])}
+    sources.update({item["id"]: auto_certificate_source(item["name"]) for item in options if item.get("managed")})
     if certificate_id:
         option = next((item for item in options if item["id"] == certificate_id), None)
         if not option:
@@ -608,6 +669,10 @@ def select_reverse_proxy_certificate(server_name: str, settings: dict[str, Any],
         score = 2 if server_name.lower().rstrip(".") in option["domains"] else 1
         matches.append((score, source, option))
     if not matches:
+        domain = auto_certificate_domain(server_name, settings)
+        if domain:
+            issue_reverse_proxy_certificate(domain, settings)
+            return select_reverse_proxy_certificate(server_name, settings, auto_certificate_source(domain)["id"])
         raise HTTPException(status_code=400, detail=f"没有有效证书匹配域名 {server_name}；请检查证书和私钥，或关闭 HTTPS")
     best_score = max(match[0] for match in matches)
     best = [match for match in matches if match[0] == best_score]
@@ -1820,6 +1885,8 @@ async def get_reverse_proxies() -> dict[str, Any]:
             "proxies": proxies,
             "remote_host": settings.get("ssh_host"),
             "certificates": reverse_proxy_certificate_options(settings),
+            "auto_certificate_zones": (settings.get("auto_certificate") or {}).get("zones", [])
+            if (settings.get("auto_certificate") or {}).get("cloudflare_credentials") else [],
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"读取远端 Nginx 反代失败：{type(exc).__name__}: {exc}") from exc
